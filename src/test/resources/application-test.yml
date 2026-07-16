@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/weather_api_test}
+    username: ${DB_USERNAME:weather_api}
+    password: ${DB_PASSWORD:weather_api_local_dev}

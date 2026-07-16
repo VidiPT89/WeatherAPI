@@ -4,6 +4,20 @@ server:
 spring:
   application:
     name: weather-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/weather_api}
+    username: ${DB_USERNAME:weather_api}
+    password: ${DB_PASSWORD:weather_api_local_dev}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 weather:
   open-meteo:
@@ -15,6 +29,16 @@ weather:
   http:
     connect-timeout-ms: 3000
     read-timeout-ms: 5000
+
+# JWT_SECRET default below is a LOCAL DEV ONLY value, safe to keep in source
+# because it only signs tokens for a database that lives on localhost.
+# Any real deployment must override it via the JWT_SECRET environment variable.
+jwt:
+  secret: ${JWT_SECRET:OCmPQ/BnxKOAKv/4OfYjssQOOCuKOVawTEHC/Cp1v0GIOthc1FlQ6a5hph1Eri+U}
+  expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+
+rate-limit:
+  requests-per-minute: 60
 
 springdoc:
   swagger-ui:
