@@ -108,11 +108,17 @@ Prerequisites: Java 21, Maven and a local PostgreSQL instance.
 git clone https://github.com/VidiPT89/WeatherAPI.git
 cd WeatherAPI
 
-# 2. Create the database (one time)
+# 2. Make sure `java`/`mvn` resolve to Java 21
+#    (skip this if `java -version` already reports 21; on macOS with Homebrew,
+#    versioned JDKs are installed keg-only and aren't on PATH by default)
+export JAVA_HOME="/opt/homebrew/opt/openjdk@21"
+export PATH="$JAVA_HOME/bin:$PATH"
+
+# 3. Create the database (one time)
 createuser weather_api --pwprompt
 createdb weather_api -O weather_api
 
-# 3. Run the application (Flyway applies migrations automatically)
+# 4. Run the application (Flyway applies migrations automatically)
 mvn spring-boot:run
 ```
 
