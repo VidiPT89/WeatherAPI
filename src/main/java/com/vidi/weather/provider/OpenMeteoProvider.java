@@ -12,6 +12,7 @@ import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import com.vidi.weather.util.WeatherCodeMapper;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
@@ -19,6 +20,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
+@Order(1)
 public class OpenMeteoProvider implements WeatherProvider {
 
     private static final String PROVIDER_NAME = "open-meteo";

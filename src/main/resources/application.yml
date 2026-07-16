@@ -23,12 +23,51 @@ weather:
   open-meteo:
     geocoding-url: https://geocoding-api.open-meteo.com/v1/search
     forecast-url: https://api.open-meteo.com/v1/forecast
+  open-weather-map:
+    base-url: https://api.openweathermap.org/data/2.5/weather
+    api-key: ${OPENWEATHERMAP_API_KEY:}
   cache:
     ttl-minutes: 15
     max-size: 500
   http:
     connect-timeout-ms: 3000
     read-timeout-ms: 5000
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      open-meteo:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        ignore-exceptions:
+          - com.vidi.weather.exception.CityNotFoundException
+      open-weather-map:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        ignore-exceptions:
+          - com.vidi.weather.exception.CityNotFoundException
+  retry:
+    instances:
+      open-meteo:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - com.vidi.weather.exception.ProviderUnavailableException
+      open-weather-map:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - com.vidi.weather.exception.ProviderUnavailableException
 
 # JWT_SECRET default below is a LOCAL DEV ONLY value, safe to keep in source
 # because it only signs tokens for a database that lives on localhost.

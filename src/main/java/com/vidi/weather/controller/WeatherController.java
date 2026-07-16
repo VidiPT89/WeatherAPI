@@ -1,5 +1,6 @@
 package com.vidi.weather.controller;
 
+import com.vidi.weather.dto.CompareResponse;
 import com.vidi.weather.dto.FavoriteRequest;
 import com.vidi.weather.dto.FavoriteResponse;
 import com.vidi.weather.dto.SearchHistoryResponse;
@@ -59,6 +60,21 @@ public class WeatherController {
         WeatherResult result = weatherAggregatorService.getCurrentWeather(city, parsedUnits);
         searchHistoryService.record(user, city, parsedUnits);
         return ResponseEntity.ok(WeatherResponse.from(result));
+    }
+
+    @GetMapping("/compare")
+    @Operation(summary = "Compare current weather for a city across all configured providers")
+    public ResponseEntity<CompareResponse> compareProviders(
+            @RequestParam String city,
+            @RequestParam(required = false) String units,
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+
+        if (city.isBlank()) {
+            throw new IllegalArgumentException("Query parameter 'city' must not be blank");
+        }
+
+        Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
+        return ResponseEntity.ok(weatherAggregatorService.compareProviders(city, parsedUnits));
     }
 
     @GetMapping("/history")
