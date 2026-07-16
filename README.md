@@ -13,6 +13,7 @@ Weather API Aggregator queries a primary weather provider (Open-Meteo) and falls
 - ⚖️ **Provider comparison endpoint** — the same city, side by side, across every configured provider, with a per-provider error entry if one fails instead of failing the whole request
 - 🌡️ Unit normalization across providers — OpenWeatherMap natively returns Kelvin and m/s; the conversion to Celsius/Fahrenheit and km/h/mph happens in the application, never on the provider's side
 - ⚡ In-memory cache (Caffeine), configurable TTL, with an explicit `fromCache` flag showing whether a response came from cache
+- 📊 Aggregate stats endpoint — total users, searches, favorites, the most-searched city and live cache hit/miss counts
 - 🔐 JWT authentication (register/login), passwords hashed with BCrypt
 - 🕘 Per-user search history and favorite cities (PostgreSQL, Flyway migrations)
 - ⚙️ Per-user unit preference — omitting `units` on a search falls back to the saved preference
@@ -84,6 +85,8 @@ POST /api/v1/weather/favorites             — add a favorite
 
 GET  /api/v1/user/preferences              — get preferences
 POST /api/v1/user/preferences              — update preferences
+
+GET  /api/v1/stats                         — aggregate usage stats (users, searches, favorites, cache hit rate)
 ```
 
 | Scenario | Status |

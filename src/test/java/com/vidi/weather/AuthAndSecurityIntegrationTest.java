@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +17,7 @@ import com.vidi.weather.model.WeatherResult;
 import com.vidi.weather.service.WeatherAggregatorService;
 import java.time.Instant;
 import java.util.UUID;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -114,6 +116,30 @@ class AuthAndSecurityIntegrationTest {
         mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void statsEndpointRejectsRequestsWithoutAToken() throws Exception {
+        mockMvc.perform(get("/api/v1/stats"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void statsEndpointReturnsAggregateCounts_whenAuthenticated() throws Exception {
+        String email = uniqueEmail();
+        String token = registerAndGetToken(email);
+        stubWeatherAggregator();
+
+        mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/stats").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalUsers").value(Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.totalSearches").value(Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.mostSearchedCity").isNotEmpty())
+                .andExpect(jsonPath("$.mostSearchedCityCount").value(Matchers.greaterThanOrEqualTo(1)));
     }
 
     private void stubWeatherAggregator() {
