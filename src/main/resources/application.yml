@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: weather-api
+
+weather:
+  open-meteo:
+    geocoding-url: https://geocoding-api.open-meteo.com/v1/search
+    forecast-url: https://api.open-meteo.com/v1/forecast
+  cache:
+    ttl-minutes: 15
+    max-size: 500
+  http:
+    connect-timeout-ms: 3000
+    read-timeout-ms: 5000
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    com.vidi.weather: INFO
