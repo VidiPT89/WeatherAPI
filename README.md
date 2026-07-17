@@ -2,7 +2,9 @@
 
 > A Spring Boot backend API that aggregates weather data from multiple external sources, with automatic fallback, a circuit breaker, JWT authentication and normalized error handling — designed to keep working even when an external source fails.
 
-**Clients built on this API:** [Web (Next.js)](../WeatherApp) · [iOS (Swift/SwiftUI)](../WeatherApp-iOS) · [Android (Kotlin/Compose)](../WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
+**Clients built on this API:** [Web (Next.js)](https://github.com/VidiPT89/WeatherApp) ([live](https://weather-app-psi-inky-53.vercel.app)) · [iOS (Swift/SwiftUI)](https://github.com/VidiPT89/WeatherApp-iOS) · [Android (Kotlin/Compose)](https://github.com/VidiPT89/WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
+
+**Live API:** [weather-api-production-68ff.up.railway.app](https://weather-api-production-68ff.up.railway.app) ([Swagger UI](https://weather-api-production-68ff.up.railway.app/swagger-ui/index.html))
 
 Weather API Aggregator queries a primary weather provider (Open-Meteo) and falls back automatically to a secondary one (OpenWeatherMap) if the first is down, each call protected by a Resilience4j circuit breaker and retry with exponential backoff. On top of that sits a full per-user layer — JWT authentication, search history, favorite cities and unit preferences backed by PostgreSQL — plus an in-memory cache, per-user rate limiting and a provider-comparison endpoint that shows the same city side by side across every configured source.
 
