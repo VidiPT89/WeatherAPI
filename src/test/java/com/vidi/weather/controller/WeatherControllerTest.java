@@ -17,11 +17,14 @@ import com.vidi.weather.exception.CityNotFoundException;
 import com.vidi.weather.exception.FavoriteAlreadyExistsException;
 import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
+import com.vidi.weather.model.ForecastData;
+import com.vidi.weather.model.ForecastResult;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.model.WeatherResult;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.FavoriteService;
+import com.vidi.weather.service.ForecastService;
 import com.vidi.weather.service.SearchHistoryService;
 import com.vidi.weather.service.WeatherAggregatorService;
 import java.time.Instant;
@@ -43,6 +46,9 @@ class WeatherControllerTest {
 
     @MockitoBean
     private WeatherAggregatorService weatherAggregatorService;
+
+    @MockitoBean
+    private ForecastService forecastService;
 
     @MockitoBean
     private SearchHistoryService searchHistoryService;
@@ -121,6 +127,32 @@ class WeatherControllerTest {
 
         mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa").with(user(authenticatedUser)))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void returns200WithForecast_whenCityIsValid() throws Exception {
+        ForecastData forecastData = new ForecastData(
+                "Lisboa", "Portugal", Units.METRIC, "open-meteo",
+                java.util.List.of(new com.vidi.weather.model.HourlyForecast(
+                        java.time.LocalDateTime.parse("2024-01-01T00:00"), 12.5, "Mainly clear")),
+                java.util.List.of(new com.vidi.weather.model.DailyForecast(
+                        java.time.LocalDate.parse("2024-01-01"), 15.0, 8.1, "Mainly clear")));
+        when(forecastService.getForecast(eq("Lisboa"), eq(Units.METRIC)))
+                .thenReturn(new ForecastResult(forecastData, false));
+
+        mockMvc.perform(get("/api/v1/weather/forecast").param("city", "Lisboa").with(user(authenticatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Lisboa"))
+                .andExpect(jsonPath("$.hourly[0].temperature").value(12.5))
+                .andExpect(jsonPath("$.daily[0].temperatureMax").value(15.0));
+    }
+
+    @Test
+    void returns404_whenForecastCityNotFound() throws Exception {
+        when(forecastService.getForecast(any(), any())).thenThrow(new CityNotFoundException("Atlantis"));
+
+        mockMvc.perform(get("/api/v1/weather/forecast").param("city", "Atlantis").with(user(authenticatedUser)))
+                .andExpect(status().isNotFound());
     }
 
     @Test

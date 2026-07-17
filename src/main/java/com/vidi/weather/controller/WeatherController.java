@@ -3,12 +3,15 @@ package com.vidi.weather.controller;
 import com.vidi.weather.dto.CompareResponse;
 import com.vidi.weather.dto.FavoriteRequest;
 import com.vidi.weather.dto.FavoriteResponse;
+import com.vidi.weather.dto.ForecastWeatherResponse;
 import com.vidi.weather.dto.SearchHistoryResponse;
 import com.vidi.weather.dto.WeatherResponse;
+import com.vidi.weather.model.ForecastResult;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherResult;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.FavoriteService;
+import com.vidi.weather.service.ForecastService;
 import com.vidi.weather.service.SearchHistoryService;
 import com.vidi.weather.service.WeatherAggregatorService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,14 +34,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class WeatherController {
 
     private final WeatherAggregatorService weatherAggregatorService;
+    private final ForecastService forecastService;
     private final SearchHistoryService searchHistoryService;
     private final FavoriteService favoriteService;
 
     public WeatherController(
             WeatherAggregatorService weatherAggregatorService,
+            ForecastService forecastService,
             SearchHistoryService searchHistoryService,
             FavoriteService favoriteService) {
         this.weatherAggregatorService = weatherAggregatorService;
+        this.forecastService = forecastService;
         this.searchHistoryService = searchHistoryService;
         this.favoriteService = favoriteService;
     }
@@ -60,6 +66,22 @@ public class WeatherController {
         WeatherResult result = weatherAggregatorService.getCurrentWeather(city, parsedUnits);
         searchHistoryService.record(user, city, parsedUnits);
         return ResponseEntity.ok(WeatherResponse.from(result));
+    }
+
+    @GetMapping("/forecast")
+    @Operation(summary = "Get hourly and daily forecast for a city")
+    public ResponseEntity<ForecastWeatherResponse> getForecast(
+            @RequestParam String city,
+            @RequestParam(required = false) String units,
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+
+        if (city.isBlank()) {
+            throw new IllegalArgumentException("Query parameter 'city' must not be blank");
+        }
+
+        Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
+        ForecastResult result = forecastService.getForecast(city, parsedUnits);
+        return ResponseEntity.ok(ForecastWeatherResponse.from(result));
     }
 
     @GetMapping("/compare")

@@ -12,9 +12,14 @@ import com.vidi.weather.config.WeatherApiProperties;
 import com.vidi.weather.exception.CityNotFoundException;
 import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
+import com.vidi.weather.model.ForecastData;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
+import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -113,6 +118,116 @@ class OpenMeteoProviderTest {
 
         assertThatThrownBy(() -> slowProvider.fetchCurrentWeather("Lisboa", Units.METRIC))
                 .isInstanceOf(ProviderUnavailableException.class);
+    }
+
+    @Test
+    void returnsHourlyAndDailyForecast_whenProviderRespondsSuccessfully() {
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                """);
+        stubForecastSeries("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00", "2024-01-01T01:00"],
+                    "temperature_2m": [12.5, 11.9],
+                    "weather_code": [1, 2]
+                  },
+                  "daily": {
+                    "time": ["2024-01-01", "2024-01-02"],
+                    "temperature_2m_max": [15.0, 16.2],
+                    "temperature_2m_min": [8.1, 9.0],
+                    "weather_code": [1, 3]
+                  }
+                }
+                """);
+
+        ForecastData result = provider.fetchForecast("Lisboa", Units.METRIC);
+
+        assertThat(result.city()).isEqualTo("Lisbon");
+        assertThat(result.country()).isEqualTo("Portugal");
+        assertThat(result.hourly()).hasSize(2);
+        assertThat(result.hourly().get(0).time()).isEqualTo(LocalDateTime.parse("2024-01-01T00:00"));
+        assertThat(result.hourly().get(0).temperature()).isEqualTo(12.5);
+        assertThat(result.hourly().get(0).description()).isEqualTo("Mainly clear");
+        assertThat(result.daily()).hasSize(2);
+        assertThat(result.daily().get(1).date()).isEqualTo(LocalDate.parse("2024-01-02"));
+        assertThat(result.daily().get(1).temperatureMax()).isEqualTo(16.2);
+        assertThat(result.daily().get(1).temperatureMin()).isEqualTo(9.0);
+        assertThat(result.daily().get(1).description()).isEqualTo("Overcast");
+    }
+
+    @Test
+    void forecastThrowsCityNotFound_whenGeocodingReturnsNoResults() {
+        stubGeocoding("Atlantis", """
+                {"results": []}
+                """);
+
+        assertThatThrownBy(() -> provider.fetchForecast("Atlantis", Units.METRIC))
+                .isInstanceOf(CityNotFoundException.class);
+    }
+
+    @Test
+    void forecastThrowsProviderUnavailable_whenForecastSeriesReturnsServerError() {
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                """);
+        wireMock.stubFor(get(urlPathEqualTo("/v1/forecast"))
+                .willReturn(aResponse().withStatus(500)));
+
+        assertThatThrownBy(() -> provider.fetchForecast("Lisboa", Units.METRIC))
+                .isInstanceOf(ProviderUnavailableException.class);
+    }
+
+    @Test
+    void searchCitiesReturnsAllMatches_whenProviderRespondsSuccessfully() {
+        wireMock.stubFor(get(urlPathEqualTo("/v1/search"))
+                .withQueryParam("name", equalTo("Lis"))
+                .withQueryParam("count", equalTo("5"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"results": [
+                                    {"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333},
+                                    {"name": "Lissa", "country": "Poland", "latitude": 51.2, "longitude": 15.6}
+                                ]}
+                                """)));
+
+        List<GeocodingResult> results = provider.searchCities("Lis", 5);
+
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).name()).isEqualTo("Lisbon");
+        assertThat(results.get(1).name()).isEqualTo("Lissa");
+    }
+
+    @Test
+    void searchCitiesReturnsEmptyList_whenNoMatches() {
+        wireMock.stubFor(get(urlPathEqualTo("/v1/search"))
+                .withQueryParam("name", equalTo("Atlantis"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"results": []}
+                                """)));
+
+        List<GeocodingResult> results = provider.searchCities("Atlantis", 5);
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void searchCitiesThrowsProviderUnavailable_whenProviderReturnsServerError() {
+        wireMock.stubFor(get(urlPathEqualTo("/v1/search"))
+                .willReturn(aResponse().withStatus(500)));
+
+        assertThatThrownBy(() -> provider.searchCities("Lisboa", 5))
+                .isInstanceOf(ProviderUnavailableException.class);
+    }
+
+    private void stubForecastSeries(String responseBody) {
+        wireMock.stubFor(get(urlPathEqualTo("/v1/forecast"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(responseBody)));
     }
 
     private void stubGeocoding(String city, String responseBody) {

@@ -2,11 +2,15 @@
 
 > A Spring Boot backend API that aggregates weather data from multiple external sources, with automatic fallback, a circuit breaker, JWT authentication and normalized error handling — designed to keep working even when an external source fails.
 
+**Clients built on this API:** [Web (Next.js)](../WeatherApp) · [iOS (Swift/SwiftUI)](../WeatherApp-iOS) · [Android (Kotlin/Compose)](../WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
+
 Weather API Aggregator queries a primary weather provider (Open-Meteo) and falls back automatically to a secondary one (OpenWeatherMap) if the first is down, each call protected by a Resilience4j circuit breaker and retry with exponential backoff. On top of that sits a full per-user layer — JWT authentication, search history, favorite cities and unit preferences backed by PostgreSQL — plus an in-memory cache, per-user rate limiting and a provider-comparison endpoint that shows the same city side by side across every configured source.
 
 ## 📦 What's Inside
 
 - 🔎 Current weather lookup by city, with unit normalization (Celsius/km-h or Fahrenheit/mph)
+- 📈 Hourly and daily forecast lookup by city (Open-Meteo), cached the same way as current weather
+- 🔤 City search/autocomplete endpoint (Open-Meteo geocoding), for typeahead search boxes in the clients
 - 🧩 Providers decoupled behind a Strategy/Adapter interface — swapping or adding a provider never touches the controller or the API contract
 - 🔁 **Automatic fallback between providers** (Open-Meteo → OpenWeatherMap): if the primary fails, the request is served by the secondary one transparently
 - ⚡ **Circuit breaker + retry with exponential backoff** (Resilience4j) per provider — a provider that's systematically failing stops being called for a few seconds instead of piling up load, and transient errors are retried before giving up on that provider
@@ -78,10 +82,13 @@ POST /api/v1/auth/register                 — register (returns a JWT)
 POST /api/v1/auth/login                    — log in (returns a JWT)
 
 GET  /api/v1/weather?city=&units=          — current weather, with automatic fallback (authenticated)
+GET  /api/v1/weather/forecast?city=&units= — hourly + daily forecast (Open-Meteo only, cached)
 GET  /api/v1/weather/compare?city=&units=  — same city, side by side, across every provider
 GET  /api/v1/weather/history               — search history
 GET  /api/v1/weather/favorites             — list favorites
 POST /api/v1/weather/favorites             — add a favorite
+
+GET  /api/v1/geocoding?query=&limit=       — city search/autocomplete (Open-Meteo geocoding, cached)
 
 GET  /api/v1/user/preferences              — get preferences
 POST /api/v1/user/preferences              — update preferences
@@ -141,6 +148,7 @@ Repository tests and the end-to-end security/fallback tests run against a real P
 - Open-Meteo's geocoding picks the most relevant result by name; ambiguous city names can return the wrong location (no country/coordinate disambiguation yet).
 - Rate limiting, circuit breaker state and cached data are all in-memory and per instance (Caffeine); none of it is shared across multiple application instances yet.
 - No favorite-removal endpoint at this stage — list and add only, matching the project's defined scope.
+- Forecast is Open-Meteo-only — OpenWeatherMap has no forecast call wired up in this codebase, so there's no fallback for `/weather/forecast` (a provider outage there surfaces as `502`, unlike `/weather`, which falls back to the secondary provider).
 - The original spec sketched `/weather/compare?cities=` for comparing different cities. This project implements `/weather/compare?city=` instead, comparing the **same** city across different providers side by side — that's the feature actually described in the spec's "differentiation" phase, and it's what demonstrates the real value of the multi-provider architecture.
 
 ## 📄 License

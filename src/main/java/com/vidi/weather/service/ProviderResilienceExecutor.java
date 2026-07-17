@@ -27,11 +27,15 @@ public class ProviderResilienceExecutor {
     }
 
     public WeatherData call(WeatherProvider provider, String city, Units units) {
-        CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(provider.getProviderName());
-        Retry retry = retryRegistry.retry(provider.getProviderName());
+        return execute(provider.getProviderName(), () -> provider.fetchCurrentWeather(city, units));
+    }
 
-        Supplier<WeatherData> withRetry = Retry.decorateSupplier(retry, () -> provider.fetchCurrentWeather(city, units));
-        Supplier<WeatherData> withCircuitBreaker = CircuitBreaker.decorateSupplier(circuitBreaker, withRetry);
+    public <T> T execute(String providerName, Supplier<T> call) {
+        CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(providerName);
+        Retry retry = retryRegistry.retry(providerName);
+
+        Supplier<T> withRetry = Retry.decorateSupplier(retry, call);
+        Supplier<T> withCircuitBreaker = CircuitBreaker.decorateSupplier(circuitBreaker, withRetry);
 
         return withCircuitBreaker.get();
     }
