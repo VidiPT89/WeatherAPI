@@ -7,11 +7,13 @@ import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.model.DailyForecast;
 import com.vidi.weather.model.ForecastData;
 import com.vidi.weather.model.HourlyForecast;
+import com.vidi.weather.model.MarineData;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.provider.openmeteo.ForecastResponse;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
+import com.vidi.weather.provider.openmeteo.MarineResponse;
 import com.vidi.weather.util.WeatherCodeMapper;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -30,6 +32,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class OpenMeteoProvider implements WeatherProvider {
 
     private static final String PROVIDER_NAME = "open-meteo";
+    private static final int FORECAST_HOURLY_HOURS = 48;
+    private static final int FORECAST_DAILY_DAYS = 16;
 
     private final RestTemplate restTemplate;
     private final WeatherApiProperties properties;
@@ -66,7 +70,8 @@ public class OpenMeteoProvider implements WeatherProvider {
                 .mapToObj(i -> new HourlyForecast(
                         LocalDateTime.parse(response.hourly().time().get(i)),
                         response.hourly().temperature2m().get(i),
-                        WeatherCodeMapper.describe(response.hourly().weatherCode().get(i))))
+                        WeatherCodeMapper.describe(response.hourly().weatherCode().get(i)),
+                        response.hourly().precipitationProbability().get(i)))
                 .toList();
 
         List<DailyForecast> daily = IntStream.range(0, response.daily().time().size())
@@ -74,10 +79,33 @@ public class OpenMeteoProvider implements WeatherProvider {
                         LocalDate.parse(response.daily().time().get(i)),
                         response.daily().temperatureMax().get(i),
                         response.daily().temperatureMin().get(i),
-                        WeatherCodeMapper.describe(response.daily().weatherCode().get(i))))
+                        WeatherCodeMapper.describe(response.daily().weatherCode().get(i)),
+                        LocalDateTime.parse(response.daily().sunrise().get(i)),
+                        LocalDateTime.parse(response.daily().sunset().get(i)),
+                        response.daily().uvIndexMax().get(i),
+                        response.daily().precipitationProbabilityMax().get(i)))
                 .toList();
 
         return new ForecastData(location.name(), location.country(), units, PROVIDER_NAME, hourly, daily);
+    }
+
+    public MarineData fetchMarineConditions(String city, Units units) {
+        GeocodingResult location = resolveLocation(city);
+        MarineResponse response = fetchMarineSeries(location, units);
+
+        MarineResponse.Hourly hourly = response.hourly();
+        boolean hasReadings = hourly != null && !hourly.time().isEmpty();
+
+        return new MarineData(
+                location.name(),
+                location.country(),
+                units,
+                PROVIDER_NAME,
+                hasReadings ? hourly.seaSurfaceTemperature().get(0) : null,
+                hasReadings ? hourly.waveHeight().get(0) : null,
+                hasReadings ? hourly.waveDirection().get(0) : null,
+                hasReadings ? hourly.wavePeriod().get(0) : null
+        );
     }
 
     public List<GeocodingResult> searchCities(String query, int limit) {
@@ -135,16 +163,39 @@ public class OpenMeteoProvider implements WeatherProvider {
         String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().forecastUrl())
                 .queryParam("latitude", location.latitude())
                 .queryParam("longitude", location.longitude())
-                .queryParam("hourly", "temperature_2m,weather_code")
-                .queryParam("daily", "temperature_2m_max,temperature_2m_min,weather_code")
+                .queryParam("hourly", "temperature_2m,weather_code,precipitation_probability")
+                .queryParam("daily",
+                        "temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,"
+                                + "uv_index_max,precipitation_probability_max")
                 .queryParam("temperature_unit", temperatureUnit)
                 .queryParam("timezone", "auto")
-                .queryParam("forecast_days", 3)
+                .queryParam("forecast_hours", FORECAST_HOURLY_HOURS)
+                .queryParam("forecast_days", FORECAST_DAILY_DAYS)
                 .toUriString();
 
         ForecastResponse response = execute(() -> restTemplate.getForObject(uri, ForecastResponse.class));
 
         if (response == null || response.hourly() == null || response.daily() == null) {
+            throw new ProviderUnavailableException(PROVIDER_NAME, null);
+        }
+        return response;
+    }
+
+    private MarineResponse fetchMarineSeries(GeocodingResult location, Units units) {
+        String temperatureUnit = units == Units.IMPERIAL ? "fahrenheit" : "celsius";
+
+        String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().marineUrl())
+                .queryParam("latitude", location.latitude())
+                .queryParam("longitude", location.longitude())
+                .queryParam("hourly", "wave_height,wave_direction,wave_period,sea_surface_temperature")
+                .queryParam("temperature_unit", temperatureUnit)
+                .queryParam("timezone", "auto")
+                .queryParam("forecast_days", 1)
+                .toUriString();
+
+        MarineResponse response = execute(() -> restTemplate.getForObject(uri, MarineResponse.class));
+
+        if (response == null) {
             throw new ProviderUnavailableException(PROVIDER_NAME, null);
         }
         return response;

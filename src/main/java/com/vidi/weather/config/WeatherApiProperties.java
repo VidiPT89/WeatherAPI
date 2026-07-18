@@ -9,7 +9,7 @@ public record WeatherApiProperties(
         Cache cache,
         Http http
 ) {
-    public record OpenMeteo(String geocodingUrl, String forecastUrl) {
+    public record OpenMeteo(String geocodingUrl, String forecastUrl, String marineUrl) {
     }
 
     public record OpenWeatherMap(String baseUrl, String apiKey) {

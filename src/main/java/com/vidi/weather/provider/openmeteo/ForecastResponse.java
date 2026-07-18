@@ -21,7 +21,8 @@ public record ForecastResponse(CurrentWeather current, Hourly hourly, Daily dail
     public record Hourly(
             List<String> time,
             @JsonProperty("temperature_2m") List<Double> temperature2m,
-            @JsonProperty("weather_code") List<Integer> weatherCode
+            @JsonProperty("weather_code") List<Integer> weatherCode,
+            @JsonProperty("precipitation_probability") List<Integer> precipitationProbability
     ) {
     }
 
@@ -30,7 +31,11 @@ public record ForecastResponse(CurrentWeather current, Hourly hourly, Daily dail
             List<String> time,
             @JsonProperty("temperature_2m_max") List<Double> temperatureMax,
             @JsonProperty("temperature_2m_min") List<Double> temperatureMin,
-            @JsonProperty("weather_code") List<Integer> weatherCode
+            @JsonProperty("weather_code") List<Integer> weatherCode,
+            @JsonProperty("sunrise") List<String> sunrise,
+            @JsonProperty("sunset") List<String> sunset,
+            @JsonProperty("uv_index_max") List<Double> uvIndexMax,
+            @JsonProperty("precipitation_probability_max") List<Integer> precipitationProbabilityMax
     ) {
     }
 }

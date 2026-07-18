@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.vidi.weather.dto.ErrorResponse;
+import com.vidi.weather.exception.ErrorCode;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
@@ -61,7 +62,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 HttpStatus.TOO_MANY_REQUESTS.value(),
                 HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
                 "Rate limit exceeded. Please slow down and try again shortly.",
-                request.getRequestURI());
+                request.getRequestURI(),
+                ErrorCode.RATE_LIMIT_EXCEEDED);
 
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

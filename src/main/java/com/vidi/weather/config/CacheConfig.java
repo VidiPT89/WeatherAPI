@@ -3,6 +3,7 @@ package com.vidi.weather.config;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.vidi.weather.model.ForecastData;
+import com.vidi.weather.model.MarineData;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import java.time.Duration;
@@ -25,6 +26,11 @@ public class CacheConfig {
 
     @Bean
     public Cache<String, List<GeocodingResult>> geocodingCache(WeatherApiProperties properties) {
+        return buildCache(properties);
+    }
+
+    @Bean
+    public Cache<String, MarineData> marineCache(WeatherApiProperties properties) {
         return buildCache(properties);
     }
 

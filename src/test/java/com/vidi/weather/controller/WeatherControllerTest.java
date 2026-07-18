@@ -25,6 +25,7 @@ import com.vidi.weather.model.WeatherResult;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.FavoriteService;
 import com.vidi.weather.service.ForecastService;
+import com.vidi.weather.service.MarineService;
 import com.vidi.weather.service.SearchHistoryService;
 import com.vidi.weather.service.WeatherAggregatorService;
 import java.time.Instant;
@@ -49,6 +50,9 @@ class WeatherControllerTest {
 
     @MockitoBean
     private ForecastService forecastService;
+
+    @MockitoBean
+    private MarineService marineService;
 
     @MockitoBean
     private SearchHistoryService searchHistoryService;
@@ -134,9 +138,12 @@ class WeatherControllerTest {
         ForecastData forecastData = new ForecastData(
                 "Lisboa", "Portugal", Units.METRIC, "open-meteo",
                 java.util.List.of(new com.vidi.weather.model.HourlyForecast(
-                        java.time.LocalDateTime.parse("2024-01-01T00:00"), 12.5, "Mainly clear")),
+                        java.time.LocalDateTime.parse("2024-01-01T00:00"), 12.5, "Mainly clear", 10)),
                 java.util.List.of(new com.vidi.weather.model.DailyForecast(
-                        java.time.LocalDate.parse("2024-01-01"), 15.0, 8.1, "Mainly clear")));
+                        java.time.LocalDate.parse("2024-01-01"), 15.0, 8.1, "Mainly clear",
+                        java.time.LocalDateTime.parse("2024-01-01T07:45"),
+                        java.time.LocalDateTime.parse("2024-01-01T17:30"),
+                        3.5, 20)));
         when(forecastService.getForecast(eq("Lisboa"), eq(Units.METRIC)))
                 .thenReturn(new ForecastResult(forecastData, false));
 
@@ -152,6 +159,41 @@ class WeatherControllerTest {
         when(forecastService.getForecast(any(), any())).thenThrow(new CityNotFoundException("Atlantis"));
 
         mockMvc.perform(get("/api/v1/weather/forecast").param("city", "Atlantis").with(user(authenticatedUser)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void returns200WithMarineConditions_whenCityIsCoastal() throws Exception {
+        com.vidi.weather.model.MarineData marineData = new com.vidi.weather.model.MarineData(
+                "Lisboa", "Portugal", Units.METRIC, "open-meteo", 16.8, 1.2, 270.0, 6.5);
+        when(marineService.getMarineConditions(eq("Lisboa"), eq(Units.METRIC)))
+                .thenReturn(new com.vidi.weather.model.MarineResult(marineData, false));
+
+        mockMvc.perform(get("/api/v1/weather/marine").param("city", "Lisboa").with(user(authenticatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Lisboa"))
+                .andExpect(jsonPath("$.waterTemperature").value(16.8))
+                .andExpect(jsonPath("$.waveHeightMeters").value(1.2));
+    }
+
+    @Test
+    void returns200WithNullFields_whenCityHasNoMarineData() throws Exception {
+        com.vidi.weather.model.MarineData marineData = new com.vidi.weather.model.MarineData(
+                "Madrid", "Spain", Units.METRIC, "open-meteo", null, null, null, null);
+        when(marineService.getMarineConditions(eq("Madrid"), eq(Units.METRIC)))
+                .thenReturn(new com.vidi.weather.model.MarineResult(marineData, false));
+
+        mockMvc.perform(get("/api/v1/weather/marine").param("city", "Madrid").with(user(authenticatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Madrid"))
+                .andExpect(jsonPath("$.waterTemperature").isEmpty());
+    }
+
+    @Test
+    void returns404_whenMarineCityNotFound() throws Exception {
+        when(marineService.getMarineConditions(any(), any())).thenThrow(new CityNotFoundException("Atlantis"));
+
+        mockMvc.perform(get("/api/v1/weather/marine").param("city", "Atlantis").with(user(authenticatedUser)))
                 .andExpect(status().isNotFound());
     }
 

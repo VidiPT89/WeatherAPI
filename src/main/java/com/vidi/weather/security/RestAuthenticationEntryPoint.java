@@ -2,6 +2,7 @@ package com.vidi.weather.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidi.weather.dto.ErrorResponse;
+import com.vidi.weather.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -27,7 +28,8 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
                 "Authentication is required to access this resource.",
-                request.getRequestURI());
+                request.getRequestURI(),
+                ErrorCode.UNAUTHENTICATED);
 
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

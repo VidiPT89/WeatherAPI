@@ -13,6 +13,7 @@ import com.vidi.weather.exception.CityNotFoundException;
 import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.model.ForecastData;
+import com.vidi.weather.model.MarineData;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
@@ -45,7 +46,8 @@ class OpenMeteoProviderTest {
         WeatherApiProperties properties = new WeatherApiProperties(
                 new WeatherApiProperties.OpenMeteo(
                         wireMock.baseUrl() + "/v1/search",
-                        wireMock.baseUrl() + "/v1/forecast"),
+                        wireMock.baseUrl() + "/v1/forecast",
+                        wireMock.baseUrl() + "/v1/marine"),
                 new WeatherApiProperties.OpenWeatherMap("unused", "unused"),
                 new WeatherApiProperties.Cache(15, 500),
                 new WeatherApiProperties.Http(connectTimeoutMs, readTimeoutMs));
@@ -130,13 +132,18 @@ class OpenMeteoProviderTest {
                   "hourly": {
                     "time": ["2024-01-01T00:00", "2024-01-01T01:00"],
                     "temperature_2m": [12.5, 11.9],
-                    "weather_code": [1, 2]
+                    "weather_code": [1, 2],
+                    "precipitation_probability": [10, 20]
                   },
                   "daily": {
                     "time": ["2024-01-01", "2024-01-02"],
                     "temperature_2m_max": [15.0, 16.2],
                     "temperature_2m_min": [8.1, 9.0],
-                    "weather_code": [1, 3]
+                    "weather_code": [1, 3],
+                    "sunrise": ["2024-01-01T07:45", "2024-01-02T07:45"],
+                    "sunset": ["2024-01-01T17:30", "2024-01-02T17:31"],
+                    "uv_index_max": [3.5, 3.8],
+                    "precipitation_probability_max": [20, 30]
                   }
                 }
                 """);
@@ -149,11 +156,16 @@ class OpenMeteoProviderTest {
         assertThat(result.hourly().get(0).time()).isEqualTo(LocalDateTime.parse("2024-01-01T00:00"));
         assertThat(result.hourly().get(0).temperature()).isEqualTo(12.5);
         assertThat(result.hourly().get(0).description()).isEqualTo("Mainly clear");
+        assertThat(result.hourly().get(0).precipitationProbability()).isEqualTo(10);
         assertThat(result.daily()).hasSize(2);
         assertThat(result.daily().get(1).date()).isEqualTo(LocalDate.parse("2024-01-02"));
         assertThat(result.daily().get(1).temperatureMax()).isEqualTo(16.2);
         assertThat(result.daily().get(1).temperatureMin()).isEqualTo(9.0);
         assertThat(result.daily().get(1).description()).isEqualTo("Overcast");
+        assertThat(result.daily().get(1).sunrise()).isEqualTo(LocalDateTime.parse("2024-01-02T07:45"));
+        assertThat(result.daily().get(1).sunset()).isEqualTo(LocalDateTime.parse("2024-01-02T17:31"));
+        assertThat(result.daily().get(1).uvIndexMax()).isEqualTo(3.8);
+        assertThat(result.daily().get(1).precipitationProbabilityMax()).isEqualTo(30);
     }
 
     @Test
@@ -221,6 +233,89 @@ class OpenMeteoProviderTest {
 
         assertThatThrownBy(() -> provider.searchCities("Lisboa", 5))
                 .isInstanceOf(ProviderUnavailableException.class);
+    }
+
+    @Test
+    void returnsMarineConditions_whenCityIsCoastal() {
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                """);
+        stubMarine("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00", "2024-01-01T01:00"],
+                    "wave_height": [1.2, 1.3],
+                    "wave_direction": [270.0, 272.0],
+                    "wave_period": [6.5, 6.7],
+                    "sea_surface_temperature": [16.8, 16.7]
+                  }
+                }
+                """);
+
+        MarineData result = provider.fetchMarineConditions("Lisboa", Units.METRIC);
+
+        assertThat(result.city()).isEqualTo("Lisbon");
+        assertThat(result.country()).isEqualTo("Portugal");
+        assertThat(result.provider()).isEqualTo("open-meteo");
+        assertThat(result.waterTemperature()).isEqualTo(16.8);
+        assertThat(result.waveHeightMeters()).isEqualTo(1.2);
+        assertThat(result.waveDirectionDegrees()).isEqualTo(270.0);
+        assertThat(result.wavePeriodSeconds()).isEqualTo(6.5);
+    }
+
+    @Test
+    void returnsNullMarineFields_whenCityIsInland() {
+        stubGeocoding("Madrid", """
+                {"results": [{"name": "Madrid", "country": "Spain", "latitude": 40.4168, "longitude": -3.7038}]}
+                """);
+        stubMarine("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00", "2024-01-01T01:00"],
+                    "wave_height": [null, null],
+                    "wave_direction": [null, null],
+                    "wave_period": [null, null],
+                    "sea_surface_temperature": [null, null]
+                  }
+                }
+                """);
+
+        MarineData result = provider.fetchMarineConditions("Madrid", Units.METRIC);
+
+        assertThat(result.city()).isEqualTo("Madrid");
+        assertThat(result.waterTemperature()).isNull();
+        assertThat(result.waveHeightMeters()).isNull();
+        assertThat(result.waveDirectionDegrees()).isNull();
+        assertThat(result.wavePeriodSeconds()).isNull();
+    }
+
+    @Test
+    void marineConditionsThrowsCityNotFound_whenGeocodingReturnsNoResults() {
+        stubGeocoding("Atlantis", """
+                {"results": []}
+                """);
+
+        assertThatThrownBy(() -> provider.fetchMarineConditions("Atlantis", Units.METRIC))
+                .isInstanceOf(CityNotFoundException.class);
+    }
+
+    @Test
+    void marineConditionsThrowsProviderUnavailable_whenMarineApiReturnsServerError() {
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                """);
+        wireMock.stubFor(get(urlPathEqualTo("/v1/marine"))
+                .willReturn(aResponse().withStatus(500)));
+
+        assertThatThrownBy(() -> provider.fetchMarineConditions("Lisboa", Units.METRIC))
+                .isInstanceOf(ProviderUnavailableException.class);
+    }
+
+    private void stubMarine(String responseBody) {
+        wireMock.stubFor(get(urlPathEqualTo("/v1/marine"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(responseBody)));
     }
 
     private void stubForecastSeries(String responseBody) {
