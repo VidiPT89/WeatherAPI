@@ -280,6 +280,43 @@ class OpenMeteoProviderTest {
     }
 
     @Test
+    void dropsTrailingDayOrHour_whenCoreFieldsAreEntirelyNull() {
+        // Confirmed live: for some locations Open-Meteo's model doesn't reach the
+        // full requested range — the last day/hour comes back with every field
+        // null (not a shorter array). A day/hour missing its core temperature or
+        // weather code isn't real data — it must be dropped, not faked as 0°C.
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
+                """);
+        stubForecastSeries("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00", "2024-01-01T01:00"],
+                    "temperature_2m": [12.5, null],
+                    "weather_code": [1, null],
+                    "precipitation_probability": [10, null]
+                  },
+                  "daily": {
+                    "time": ["2024-01-01", "2024-01-02"],
+                    "temperature_2m_max": [15.0, null],
+                    "temperature_2m_min": [8.1, null],
+                    "weather_code": [1, null],
+                    "sunrise": ["2024-01-01T07:45", "2024-01-02T07:45"],
+                    "sunset": ["2024-01-01T17:30", "2024-01-02T17:31"],
+                    "uv_index_max": [3.5, null],
+                    "precipitation_probability_max": [20, null]
+                  }
+                }
+                """);
+
+        ForecastData result = provider.fetchForecast("Lisboa", Units.METRIC);
+
+        assertThat(result.hourly()).hasSize(1);
+        assertThat(result.daily()).hasSize(1);
+        assertThat(result.daily().get(0).date()).isEqualTo(LocalDate.parse("2024-01-01"));
+    }
+
+    @Test
     void forecastThrowsCityNotFound_whenGeocodingReturnsNoResults() {
         stubGeocoding("Atlantis", """
                 {"results": []}

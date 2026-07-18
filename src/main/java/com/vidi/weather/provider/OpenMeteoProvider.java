@@ -68,27 +68,35 @@ public class OpenMeteoProvider implements WeatherProvider {
         GeocodingResult location = resolveLocation(city);
         ForecastResponse response = fetchForecastSeries(location, units);
 
-        List<HourlyForecast> hourly = IntStream.range(0, response.hourly().time().size())
+        // Open-Meteo's model doesn't always reach the full requested range for a
+        // given location — the last hour(s)/day(s) can come back with every field
+        // null instead of a shorter array. Confirmed live for Madrid: day 16's
+        // temperatureMax/temperatureMin/weatherCode/uvIndexMax were all null.
+        // Drop those incomplete trailing entries instead of faking zeros/defaults.
+        ForecastResponse.Hourly hourlyResponse = response.hourly();
+        List<HourlyForecast> hourly = IntStream.range(0, hourlyResponse.time().size())
+                .filter(i -> hourlyResponse.temperature2m().get(i) != null && hourlyResponse.weatherCode().get(i) != null)
                 .mapToObj(i -> new HourlyForecast(
-                        LocalDateTime.parse(response.hourly().time().get(i)),
-                        response.hourly().temperature2m().get(i),
-                        WeatherCodeMapper.describe(response.hourly().weatherCode().get(i)),
-                        intOrZero(response.hourly().precipitationProbability(), i)))
+                        LocalDateTime.parse(hourlyResponse.time().get(i)),
+                        hourlyResponse.temperature2m().get(i),
+                        WeatherCodeMapper.describe(hourlyResponse.weatherCode().get(i)),
+                        intOrZero(hourlyResponse.precipitationProbability(), i)))
                 .toList();
 
-        // Open-Meteo's model doesn't reliably cover its full range for every field —
-        // uv_index_max (and similar derived metrics) can come back null for the last
-        // day or two of a 16-day forecast even though core fields stay populated.
-        List<DailyForecast> daily = IntStream.range(0, response.daily().time().size())
+        ForecastResponse.Daily dailyResponse = response.daily();
+        List<DailyForecast> daily = IntStream.range(0, dailyResponse.time().size())
+                .filter(i -> dailyResponse.temperatureMax().get(i) != null
+                        && dailyResponse.temperatureMin().get(i) != null
+                        && dailyResponse.weatherCode().get(i) != null)
                 .mapToObj(i -> new DailyForecast(
-                        LocalDate.parse(response.daily().time().get(i)),
-                        response.daily().temperatureMax().get(i),
-                        response.daily().temperatureMin().get(i),
-                        WeatherCodeMapper.describe(response.daily().weatherCode().get(i)),
-                        LocalDateTime.parse(response.daily().sunrise().get(i)),
-                        LocalDateTime.parse(response.daily().sunset().get(i)),
-                        doubleOrZero(response.daily().uvIndexMax(), i),
-                        intOrZero(response.daily().precipitationProbabilityMax(), i)))
+                        LocalDate.parse(dailyResponse.time().get(i)),
+                        dailyResponse.temperatureMax().get(i),
+                        dailyResponse.temperatureMin().get(i),
+                        WeatherCodeMapper.describe(dailyResponse.weatherCode().get(i)),
+                        LocalDateTime.parse(dailyResponse.sunrise().get(i)),
+                        LocalDateTime.parse(dailyResponse.sunset().get(i)),
+                        doubleOrZero(dailyResponse.uvIndexMax(), i),
+                        intOrZero(dailyResponse.precipitationProbabilityMax(), i)))
                 .toList();
 
         return new ForecastData(location.name(), location.country(), units, PROVIDER_NAME, hourly, daily);
