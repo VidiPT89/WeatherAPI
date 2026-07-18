@@ -1,5 +1,6 @@
 package com.vidi.weather.provider;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.absent;
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
@@ -63,7 +64,7 @@ class OpenMeteoProviderTest {
     @Test
     void returnsNormalizedWeatherData_whenProviderRespondsSuccessfully() {
         stubGeocoding("Lisboa", """
-                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
                 """);
         stubForecast("""
                 {"current": {"temperature_2m": 22.5, "relative_humidity_2m": 65, "apparent_temperature": 21.8, "wind_speed_10m": 12.3, "weather_code": 1}}
@@ -82,6 +83,78 @@ class OpenMeteoProviderTest {
 
         wireMock.verify(getRequestedFor(urlPathEqualTo("/v1/search"))
                 .withQueryParam("name", equalTo("Lisboa")));
+    }
+
+    @Test
+    void trustsPrimaryTopResult_whenItHasPopulationData_withoutQueryingLocalizedLanguage() {
+        stubGeocoding("Paris", """
+                {"results": [{"name": "Paris", "country": "France", "latitude": 48.8566, "longitude": 2.3522, "population": 2138551}]}
+                """);
+        stubForecast("""
+                {"current": {"temperature_2m": 18.0, "relative_humidity_2m": 60, "apparent_temperature": 17.5, "wind_speed_10m": 10.0, "weather_code": 0}}
+                """);
+
+        WeatherData result = provider.fetchCurrentWeather("Paris", Units.METRIC);
+
+        assertThat(result.city()).isEqualTo("Paris");
+        assertThat(result.country()).isEqualTo("France");
+        wireMock.verify(1, getRequestedFor(urlPathEqualTo("/v1/search")));
+    }
+
+    @Test
+    void retriesWithPortugueseLocale_whenPrimaryResultsHaveNoPopulationData() {
+        wireMock.stubFor(get(urlPathEqualTo("/v1/search"))
+                .withQueryParam("name", equalTo("Lisboa"))
+                .withQueryParam("language", absent())
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"results": [{"name": "Lisboa", "country": "Mozambique", "latitude": -20.12, "longitude": 33.77}]}
+                                """)));
+        wireMock.stubFor(get(urlPathEqualTo("/v1/search"))
+                .withQueryParam("name", equalTo("Lisboa"))
+                .withQueryParam("language", equalTo("pt"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"results": [{"name": "Lisboa", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
+                                """)));
+        stubForecast("""
+                {"current": {"temperature_2m": 22.5, "relative_humidity_2m": 65, "apparent_temperature": 21.8, "wind_speed_10m": 12.3, "weather_code": 1}}
+                """);
+
+        WeatherData result = provider.fetchCurrentWeather("Lisboa", Units.METRIC);
+
+        assertThat(result.city()).isEqualTo("Lisboa");
+        assertThat(result.country()).isEqualTo("Portugal");
+    }
+
+    @Test
+    void fallsBackToFirstPrimaryResult_whenNoCandidateHasPopulationData() {
+        wireMock.stubFor(get(urlPathEqualTo("/v1/search"))
+                .withQueryParam("name", equalTo("Smalltown"))
+                .withQueryParam("language", absent())
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"results": [{"name": "Smalltown", "country": "Nowhere", "latitude": 1.0, "longitude": 2.0}]}
+                                """)));
+        wireMock.stubFor(get(urlPathEqualTo("/v1/search"))
+                .withQueryParam("name", equalTo("Smalltown"))
+                .withQueryParam("language", equalTo("pt"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"results": []}
+                                """)));
+        stubForecast("""
+                {"current": {"temperature_2m": 5.0, "relative_humidity_2m": 80, "apparent_temperature": 3.0, "wind_speed_10m": 20.0, "weather_code": 3}}
+                """);
+
+        WeatherData result = provider.fetchCurrentWeather("Smalltown", Units.METRIC);
+
+        assertThat(result.city()).isEqualTo("Smalltown");
+        assertThat(result.country()).isEqualTo("Nowhere");
     }
 
     @Test
@@ -125,7 +198,7 @@ class OpenMeteoProviderTest {
     @Test
     void returnsHourlyAndDailyForecast_whenProviderRespondsSuccessfully() {
         stubGeocoding("Lisboa", """
-                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
                 """);
         stubForecastSeries("""
                 {
@@ -169,6 +242,44 @@ class OpenMeteoProviderTest {
     }
 
     @Test
+    void returnsZeroDefaults_whenDailyOrHourlyValuesAreNull() {
+        // Open-Meteo's model doesn't reliably cover its full range for every
+        // derived metric — uv_index_max (and similar) can come back null for
+        // the last day(s) of a 16-day forecast even though core fields stay
+        // populated. Confirmed live against Madrid: index 15's uv_index_max
+        // was null while every other field had a value.
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
+                """);
+        stubForecastSeries("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00"],
+                    "temperature_2m": [12.5],
+                    "weather_code": [1],
+                    "precipitation_probability": [null]
+                  },
+                  "daily": {
+                    "time": ["2024-01-01"],
+                    "temperature_2m_max": [15.0],
+                    "temperature_2m_min": [8.1],
+                    "weather_code": [1],
+                    "sunrise": ["2024-01-01T07:45"],
+                    "sunset": ["2024-01-01T17:30"],
+                    "uv_index_max": [null],
+                    "precipitation_probability_max": [null]
+                  }
+                }
+                """);
+
+        ForecastData result = provider.fetchForecast("Lisboa", Units.METRIC);
+
+        assertThat(result.hourly().get(0).precipitationProbability()).isZero();
+        assertThat(result.daily().get(0).uvIndexMax()).isZero();
+        assertThat(result.daily().get(0).precipitationProbabilityMax()).isZero();
+    }
+
+    @Test
     void forecastThrowsCityNotFound_whenGeocodingReturnsNoResults() {
         stubGeocoding("Atlantis", """
                 {"results": []}
@@ -181,7 +292,7 @@ class OpenMeteoProviderTest {
     @Test
     void forecastThrowsProviderUnavailable_whenForecastSeriesReturnsServerError() {
         stubGeocoding("Lisboa", """
-                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
                 """);
         wireMock.stubFor(get(urlPathEqualTo("/v1/forecast"))
                 .willReturn(aResponse().withStatus(500)));
@@ -238,7 +349,7 @@ class OpenMeteoProviderTest {
     @Test
     void returnsMarineConditions_whenCityIsCoastal() {
         stubGeocoding("Lisboa", """
-                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
                 """);
         stubMarine("""
                 {
@@ -266,7 +377,7 @@ class OpenMeteoProviderTest {
     @Test
     void returnsNullMarineFields_whenCityIsInland() {
         stubGeocoding("Madrid", """
-                {"results": [{"name": "Madrid", "country": "Spain", "latitude": 40.4168, "longitude": -3.7038}]}
+                {"results": [{"name": "Madrid", "country": "Spain", "latitude": 40.4168, "longitude": -3.7038, "population": 3223000}]}
                 """);
         stubMarine("""
                 {
@@ -302,7 +413,7 @@ class OpenMeteoProviderTest {
     @Test
     void marineConditionsThrowsProviderUnavailable_whenMarineApiReturnsServerError() {
         stubGeocoding("Lisboa", """
-                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333}]}
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
                 """);
         wireMock.stubFor(get(urlPathEqualTo("/v1/marine"))
                 .willReturn(aResponse().withStatus(500)));

@@ -34,6 +34,8 @@ public class OpenMeteoProvider implements WeatherProvider {
     private static final String PROVIDER_NAME = "open-meteo";
     private static final int FORECAST_HOURLY_HOURS = 48;
     private static final int FORECAST_DAILY_DAYS = 16;
+    // Open-Meteo indexes cities under their English name, so a local-spelling query needs this fallback locale to match (app is PT/EN).
+    private static final String DISAMBIGUATION_LANGUAGE = "pt";
 
     private final RestTemplate restTemplate;
     private final WeatherApiProperties properties;
@@ -71,9 +73,12 @@ public class OpenMeteoProvider implements WeatherProvider {
                         LocalDateTime.parse(response.hourly().time().get(i)),
                         response.hourly().temperature2m().get(i),
                         WeatherCodeMapper.describe(response.hourly().weatherCode().get(i)),
-                        response.hourly().precipitationProbability().get(i)))
+                        intOrZero(response.hourly().precipitationProbability(), i)))
                 .toList();
 
+        // Open-Meteo's model doesn't reliably cover its full range for every field —
+        // uv_index_max (and similar derived metrics) can come back null for the last
+        // day or two of a 16-day forecast even though core fields stay populated.
         List<DailyForecast> daily = IntStream.range(0, response.daily().time().size())
                 .mapToObj(i -> new DailyForecast(
                         LocalDate.parse(response.daily().time().get(i)),
@@ -82,8 +87,8 @@ public class OpenMeteoProvider implements WeatherProvider {
                         WeatherCodeMapper.describe(response.daily().weatherCode().get(i)),
                         LocalDateTime.parse(response.daily().sunrise().get(i)),
                         LocalDateTime.parse(response.daily().sunset().get(i)),
-                        response.daily().uvIndexMax().get(i),
-                        response.daily().precipitationProbabilityMax().get(i)))
+                        doubleOrZero(response.daily().uvIndexMax(), i),
+                        intOrZero(response.daily().precipitationProbabilityMax(), i)))
                 .toList();
 
         return new ForecastData(location.name(), location.country(), units, PROVIDER_NAME, hourly, daily);
@@ -109,8 +114,7 @@ public class OpenMeteoProvider implements WeatherProvider {
     }
 
     public List<GeocodingResult> searchCities(String query, int limit) {
-        GeocodingResponse response = fetchGeocodingResponse(query, limit);
-        return response == null || response.results() == null ? List.of() : response.results();
+        return fetchGeocodingResults(query, limit, null);
     }
 
     @Override
@@ -119,20 +123,42 @@ public class OpenMeteoProvider implements WeatherProvider {
     }
 
     private GeocodingResult resolveLocation(String city) {
-        GeocodingResponse response = fetchGeocodingResponse(city, 1);
-        List<GeocodingResult> results = response == null ? null : response.results();
-        if (results == null || results.isEmpty()) {
+        List<GeocodingResult> primary = fetchGeocodingResults(city, 1, null);
+        if (isConfidentMatch(primary)) {
+            return primary.get(0);
+        }
+
+        List<GeocodingResult> localized = fetchGeocodingResults(city, 1, DISAMBIGUATION_LANGUAGE);
+        if (isConfidentMatch(localized)) {
+            return localized.get(0);
+        }
+
+        List<GeocodingResult> fallback = !primary.isEmpty() ? primary : localized;
+        if (fallback.isEmpty()) {
             throw new CityNotFoundException(city);
         }
-        return results.get(0);
+        return fallback.get(0);
     }
 
-    private GeocodingResponse fetchGeocodingResponse(String query, int count) {
-        String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().geocodingUrl())
+    // Notable places carry population data; unrelated place-name collisions (e.g. Mozambican villages named "Lisboa") don't.
+    private boolean isConfidentMatch(List<GeocodingResult> results) {
+        return !results.isEmpty() && results.get(0).population() != null;
+    }
+
+    private List<GeocodingResult> fetchGeocodingResults(String query, int count, String language) {
+        GeocodingResponse response = fetchGeocodingResponse(query, count, language);
+        return response == null || response.results() == null ? List.of() : response.results();
+    }
+
+    private GeocodingResponse fetchGeocodingResponse(String query, int count, String language) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().geocodingUrl())
                 .queryParam("name", query)
                 .queryParam("count", count)
-                .queryParam("format", "json")
-                .toUriString();
+                .queryParam("format", "json");
+        if (language != null) {
+            builder.queryParam("language", language);
+        }
+        String uri = builder.toUriString();
 
         return execute(() -> restTemplate.getForObject(uri, GeocodingResponse.class));
     }
@@ -179,6 +205,16 @@ public class OpenMeteoProvider implements WeatherProvider {
             throw new ProviderUnavailableException(PROVIDER_NAME, null);
         }
         return response;
+    }
+
+    private static double doubleOrZero(List<Double> values, int index) {
+        Double value = values.get(index);
+        return value != null ? value : 0.0;
+    }
+
+    private static int intOrZero(List<Integer> values, int index) {
+        Integer value = values.get(index);
+        return value != null ? value : 0;
     }
 
     private MarineResponse fetchMarineSeries(GeocodingResult location, Units units) {
