@@ -2,10 +2,12 @@ package com.vidi.weather.controller;
 
 import com.vidi.weather.dto.AuthResponse;
 import com.vidi.weather.dto.LoginRequest;
+import com.vidi.weather.dto.RefreshRequest;
 import com.vidi.weather.dto.RegisterRequest;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.InvalidCredentialsException;
 import com.vidi.weather.security.JwtService;
+import com.vidi.weather.security.RefreshTokenService;
 import com.vidi.weather.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,18 +30,24 @@ public class AuthController {
     private final UserService userService;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
-    public AuthController(UserService userService, AuthenticationManager authenticationManager, JwtService jwtService) {
+    public AuthController(
+            UserService userService,
+            AuthenticationManager authenticationManager,
+            JwtService jwtService,
+            RefreshTokenService refreshTokenService) {
         this.userService = userService;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @PostMapping("/register")
     @Operation(summary = "Register a new user account")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         User user = userService.register(request.email(), request.password());
-        AuthResponse response = AuthResponse.bearer(jwtService.generateToken(user), jwtService.expirationSeconds());
+        AuthResponse response = authResponseFor(user);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -54,7 +62,27 @@ public class AuthController {
         }
 
         User user = userService.findByEmail(request.email());
-        AuthResponse response = AuthResponse.bearer(jwtService.generateToken(user), jwtService.expirationSeconds());
+        return ResponseEntity.ok(authResponseFor(user));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Exchange a refresh token for a new access + refresh token pair")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
+        RefreshTokenService.RotationResult result = refreshTokenService.rotate(request.refreshToken());
+        AuthResponse response = AuthResponse.bearer(
+                jwtService.generateToken(result.user()), jwtService.expirationSeconds(), result.refreshToken());
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Revoke a refresh token")
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshRequest request) {
+        refreshTokenService.revoke(request.refreshToken());
+        return ResponseEntity.noContent().build();
+    }
+
+    private AuthResponse authResponseFor(User user) {
+        String refreshToken = refreshTokenService.issue(user);
+        return AuthResponse.bearer(jwtService.generateToken(user), jwtService.expirationSeconds(), refreshToken);
     }
 }

@@ -76,6 +76,7 @@ resilience4j:
 jwt:
   secret: ${JWT_SECRET:OCmPQ/BnxKOAKv/4OfYjssQOOCuKOVawTEHC/Cp1v0GIOthc1FlQ6a5hph1Eri+U}
   expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
+  refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:30}
 
 rate-limit:
   requests-per-minute: 60

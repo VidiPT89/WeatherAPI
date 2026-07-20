@@ -1,5 +1,6 @@
 package com.vidi.weather;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidi.weather.dto.AuthResponse;
 import com.vidi.weather.dto.LoginRequest;
+import com.vidi.weather.dto.RefreshRequest;
 import com.vidi.weather.dto.RegisterRequest;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
@@ -103,6 +105,52 @@ class AuthAndSecurityIntegrationTest {
     }
 
     @Test
+    void registerReturnsARefreshTokenAlongsideTheAccessToken() throws Exception {
+        AuthResponse response = registerAndGetAuthResponse(uniqueEmail());
+
+        assertThat(response.refreshToken()).isNotBlank();
+    }
+
+    @Test
+    void refreshingWithAValidRefreshTokenReturnsANewTokenPair() throws Exception {
+        AuthResponse original = registerAndGetAuthResponse(uniqueEmail());
+
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RefreshRequest(original.refreshToken()))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        AuthResponse refreshed = objectMapper.readValue(result.getResponse().getContentAsString(), AuthResponse.class);
+        assertThat(refreshed.token()).isNotBlank();
+        assertThat(refreshed.refreshToken()).isNotBlank();
+    }
+
+    @Test
+    void refreshingWithAnInvalidRefreshTokenReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RefreshRequest("not-a-real-token"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @Test
+    void logoutRevokesTheRefreshTokenSoALaterRefreshFails() throws Exception {
+        AuthResponse original = registerAndGetAuthResponse(uniqueEmail());
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RefreshRequest(original.refreshToken()))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RefreshRequest(original.refreshToken()))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void exceedingTheConfiguredRateLimitReturnsTooManyRequests() throws Exception {
         String token = registerAndGetToken(uniqueEmail());
         stubWeatherAggregator();
@@ -150,14 +198,17 @@ class AuthAndSecurityIntegrationTest {
     }
 
     private String registerAndGetToken(String email) throws Exception {
+        return registerAndGetAuthResponse(email).token();
+    }
+
+    private AuthResponse registerAndGetAuthResponse(String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RegisterRequest(email, "password123"))))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        AuthResponse response = objectMapper.readValue(result.getResponse().getContentAsString(), AuthResponse.class);
-        return response.token();
+        return objectMapper.readValue(result.getResponse().getContentAsString(), AuthResponse.class);
     }
 
     private String uniqueEmail() {
