@@ -34,7 +34,13 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@TestPropertySource(properties = "rate-limit.requests-per-minute=3")
+@TestPropertySource(properties = {
+        "rate-limit.requests-per-minute=3",
+        // High enough that this class's many /register, /login, /refresh, /logout calls (all
+        // sharing MockMvc's simulated client IP) never trip it -- the IP-based auth limit itself
+        // is covered separately in AuthRateLimitIntegrationTest, in its own cached context.
+        "rate-limit.auth-requests-per-minute=1000",
+})
 class AuthAndSecurityIntegrationTest {
 
     @Autowired

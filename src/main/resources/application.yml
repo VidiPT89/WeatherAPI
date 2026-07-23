@@ -80,6 +80,10 @@ jwt:
 
 rate-limit:
   requests-per-minute: 60
+  # Stricter, IP-keyed limit for /api/v1/auth/** (login/register/refresh/logout have no
+  # authenticated principal to key a bucket on, and are the endpoints brute-force/credential
+  # stuffing attacks actually target).
+  auth-requests-per-minute: 10
 
 springdoc:
   swagger-ui:
