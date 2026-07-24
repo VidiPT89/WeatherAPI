@@ -100,6 +100,33 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    void replayingTheSameTokenWithinTheGraceWindowReturnsTheSamePairInstead_ofMintingAnOrphanedChild() {
+        // Reproduces two rotate() calls presenting the *original* (not-yet-revoked) token, one
+        // right after the other -- e.g. a proactive and a reactive refresh racing on a client.
+        // The second call must see the token now revoked (as the first call left it) and return
+        // exactly what the first call minted, not a second untracked child.
+        stubSaveReturningSameEntityWithId();
+        RefreshToken original = activeToken();
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(original));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        RefreshTokenService.RotationResult first = refreshTokenService.rotate("raw-token");
+
+        // The second caller re-reads the same row; in real life this now comes back revoked
+        // (revokedBy() was persisted by the first call) -- simulate that here.
+        RefreshToken nowRevoked = original.revokedBy(999L);
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(nowRevoked));
+
+        RefreshTokenService.RotationResult second = refreshTokenService.rotate("raw-token");
+
+        assertThat(second.refreshToken()).isEqualTo(first.refreshToken());
+        // The first rotate() persists exactly two writes (the new child + revoking `current`).
+        // The second, cache-hit rotate() must persist nothing further -- if it minted its own
+        // orphaned child instead of returning the cached pair, this count would be 4, not 2.
+        verify(refreshTokenRepository, org.mockito.Mockito.times(2)).save(any());
+    }
+
+    @Test
     void rotatingATokenRotatedLongAgoThrows() {
         RefreshToken staleRotation = activeToken().revokedBy(42L);
         ReflectionTestUtils.setField(staleRotation, "revokedAt", Instant.now().minus(1, ChronoUnit.MINUTES));

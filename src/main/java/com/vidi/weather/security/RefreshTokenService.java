@@ -1,5 +1,7 @@
 package com.vidi.weather.security;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.vidi.weather.entity.RefreshToken;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.InvalidRefreshTokenException;
@@ -38,6 +40,20 @@ public class RefreshTokenService {
     private final RefreshTokenFamilyRevoker familyRevoker;
     private final long expirationDays;
 
+    /**
+     * Raw refresh tokens are never persisted (only their hash is), so a second caller replaying
+     * an already-rotated token within the grace window can't be handed back "the same" value by
+     * looking anything up in the database -- without this cache, {@link #rotate} used to mint a
+     * brand-new child on every within-window replay instead of returning the one already issued,
+     * silently orphaning the earlier child outside the {@code replacedBy} chain (invisible to
+     * {@link RefreshTokenFamilyRevoker}, and never expired since nothing ever revokes it based on
+     * a sibling's fate). Keyed by the just-revoked token's id, short-lived to match the window.
+     */
+    private final Cache<Long, RotationResult> recentRotations = Caffeine.newBuilder()
+            .expireAfterWrite(REUSE_GRACE_WINDOW)
+            .maximumSize(10_000)
+            .build();
+
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
             UserRepository userRepository,
@@ -66,14 +82,25 @@ public class RefreshTokenService {
         if (current.isExpired()) {
             throw new InvalidRefreshTokenException();
         }
-        if (current.isRevoked() && !isWithinRotationGraceWindow(current)) {
-            // Either logged-out (replacedBy == null -- revokeFamily is then a no-op, nothing to
-            // walk) or a rotation reuse attempt past the grace window: reusing a token this stale
-            // means whoever is presenting it either has a very out-of-date copy or stole it at
-            // some point in the chain. Revoke every descendant too, forcing the legitimate holder
-            // of the current token to also re-authenticate rather than leaving it usable.
-            familyRevoker.revokeFamily(current);
-            throw new InvalidRefreshTokenException();
+        if (current.isRevoked()) {
+            if (!isWithinRotationGraceWindow(current)) {
+                // Either logged-out (replacedBy == null -- revokeFamily is then a no-op, nothing
+                // to walk) or a rotation reuse attempt past the grace window: reusing a token
+                // this stale means whoever is presenting it either has a very out-of-date copy or
+                // stole it at some point in the chain. Revoke every descendant too, forcing the
+                // legitimate holder of the current token to also re-authenticate rather than
+                // leaving it usable.
+                familyRevoker.revokeFamily(current);
+                throw new InvalidRefreshTokenException();
+            }
+
+            // A second caller replaying the same token concurrently with (or immediately after)
+            // the rotation that revoked it -- hand back the exact pair already minted for it
+            // instead of creating a second, untracked child. See recentRotations' doc comment.
+            RotationResult cached = recentRotations.getIfPresent(current.getId());
+            if (cached != null) {
+                return cached;
+            }
         }
 
         User user = userRepository.findById(current.getUserId())
@@ -84,6 +111,9 @@ public class RefreshTokenService {
                 new RefreshToken(user.getId(), hash(newRaw), newExpiry()));
         if (!current.isRevoked()) {
             refreshTokenRepository.save(current.revokedBy(next.getId()));
+            RotationResult result = new RotationResult(user, newRaw);
+            recentRotations.put(current.getId(), result);
+            return result;
         }
 
         return new RotationResult(user, newRaw);

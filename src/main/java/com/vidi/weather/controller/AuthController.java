@@ -12,6 +12,7 @@ import com.vidi.weather.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -68,10 +69,28 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "Exchange a refresh token for a new access + refresh token pair")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-        RefreshTokenService.RotationResult result = refreshTokenService.rotate(request.refreshToken());
+        RefreshTokenService.RotationResult result = rotateWithRetry(request.refreshToken());
         AuthResponse response = AuthResponse.bearer(
                 jwtService.generateToken(result.user()), jwtService.expirationSeconds(), result.refreshToken());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Two truly concurrent rotations of the same refresh token (a proactive and a reactive
+     * refresh racing on a client) both start their transaction before either commits; whichever
+     * commits second loses the optimistic-lock check on {@code RefreshToken.version} instead of
+     * silently overwriting the winner's write. Retrying re-reads the (now-revoked) token fresh
+     * and returns the winner's cached rotation via {@link RefreshTokenService}'s grace-window
+     * path -- so both callers end up with the same new pair rather than one getting an orphaned,
+     * untracked token. The retry is a brand-new call through the Spring proxy (a fresh
+     * transaction/EntityManager), not a loop inside the already-failed one.
+     */
+    private RefreshTokenService.RotationResult rotateWithRetry(String rawToken) {
+        try {
+            return refreshTokenService.rotate(rawToken);
+        } catch (OptimisticLockingFailureException raceLost) {
+            return refreshTokenService.rotate(rawToken);
+        }
     }
 
     @PostMapping("/logout")

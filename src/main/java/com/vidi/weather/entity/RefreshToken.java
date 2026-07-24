@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 
 @Entity
@@ -34,16 +35,28 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /**
+     * Optimistic-locking guard: two concurrent {@code rotate()} calls on the same token (a
+     * proactive and a reactive refresh racing, or a genuine theft-replay race) must not both
+     * successfully revoke {@code current} and mint their own child -- whichever loses the version
+     * check gets an {@link org.springframework.orm.ObjectOptimisticLockingFailureException},
+     * re-reads, and finds the winner's result instead of silently creating an orphaned token
+     * outside the {@code replacedBy} chain.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     protected RefreshToken() {
     }
 
     public RefreshToken(Long userId, String tokenHash, Instant expiresAt) {
-        this(null, userId, tokenHash, expiresAt, null, null, Instant.now());
+        this(null, userId, tokenHash, expiresAt, null, null, Instant.now(), null);
     }
 
     private RefreshToken(
             Long id, Long userId, String tokenHash, Instant expiresAt,
-            Instant revokedAt, Long replacedBy, Instant createdAt) {
+            Instant revokedAt, Long replacedBy, Instant createdAt, Long version) {
         this.id = id;
         this.userId = userId;
         this.tokenHash = tokenHash;
@@ -51,10 +64,11 @@ public class RefreshToken {
         this.revokedAt = revokedAt;
         this.replacedBy = replacedBy;
         this.createdAt = createdAt;
+        this.version = version;
     }
 
     public RefreshToken revokedBy(Long replacementId) {
-        return new RefreshToken(id, userId, tokenHash, expiresAt, Instant.now(), replacementId, createdAt);
+        return new RefreshToken(id, userId, tokenHash, expiresAt, Instant.now(), replacementId, createdAt, version);
     }
 
     public boolean isExpired() {

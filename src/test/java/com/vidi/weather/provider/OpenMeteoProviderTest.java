@@ -468,6 +468,32 @@ class OpenMeteoProviderTest {
     }
 
     @Test
+    void returnsNullMarineFields_whenAnHourlySeriesIsOmittedEntirely() {
+        // Unlike returnsNullMarineFields_whenCityIsInland (null-filled arrays), this simulates
+        // Open-Meteo omitting a field from the JSON altogether -- the array itself deserializes
+        // to null, not a list of nulls -- while "time" is still populated.
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
+                """);
+        stubMarine("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00", "2024-01-01T01:00"]
+                  }
+                }
+                """);
+
+        MarineData result = provider.fetchMarineConditions("Lisboa", Units.METRIC);
+
+        assertThat(result.city()).isEqualTo("Lisbon");
+        assertThat(result.waterTemperature()).isNull();
+        assertThat(result.waveHeightMeters()).isNull();
+        assertThat(result.waveDirectionDegrees()).isNull();
+        assertThat(result.wavePeriodSeconds()).isNull();
+        assertThat(result.tideEvents()).isEmpty();
+    }
+
+    @Test
     void marineConditionsThrowsCityNotFound_whenGeocodingReturnsNoResults() {
         stubGeocoding("Atlantis", """
                 {"results": []}

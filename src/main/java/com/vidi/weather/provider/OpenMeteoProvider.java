@@ -115,12 +115,23 @@ public class OpenMeteoProvider implements WeatherProvider {
                 location.country(),
                 units,
                 PROVIDER_NAME,
-                hasReadings ? hourly.seaSurfaceTemperature().get(0) : null,
-                hasReadings ? hourly.waveHeight().get(0) : null,
-                hasReadings ? hourly.waveDirection().get(0) : null,
-                hasReadings ? hourly.wavePeriod().get(0) : null,
+                hasReadings ? firstReading(hourly.seaSurfaceTemperature()) : null,
+                hasReadings ? firstReading(hourly.waveHeight()) : null,
+                hasReadings ? firstReading(hourly.waveDirection()) : null,
+                hasReadings ? firstReading(hourly.wavePeriod()) : null,
                 hasReadings ? TidePeakDetector.detect(hourly.time(), hourly.seaLevelHeightMsl()) : List.of()
         );
+    }
+
+    /**
+     * Open-Meteo can omit an individual hourly series entirely (the field comes back `null`,
+     * not just an empty/null-filled list) for a location it has partial marine coverage for,
+     * even while {@code hourly.time()} itself is populated -- calling {@code .get(0)} directly
+     * on such a list would throw an NPE instead of yielding the "no data" `null` these fields
+     * are supposed to represent.
+     */
+    private static Double firstReading(List<Double> series) {
+        return (series == null || series.isEmpty()) ? null : series.get(0);
     }
 
     public List<GeocodingResult> searchCities(String query, int limit) {
