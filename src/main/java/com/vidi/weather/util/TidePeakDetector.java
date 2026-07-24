@@ -22,9 +22,12 @@ public final class TidePeakDetector {
 
         int count = Math.min(times.size(), heights.size());
         for (int i = 1; i < count - 1; i++) {
-            double previous = heights.get(i - 1);
-            double current = heights.get(i);
-            double next = heights.get(i + 1);
+            Double previous = heights.get(i - 1);
+            Double current = heights.get(i);
+            Double next = heights.get(i + 1);
+            if (previous == null || current == null || next == null) {
+                continue;
+            }
 
             if (current > previous && current > next) {
                 events.add(new TideEvent(TideEvent.HIGH, times.get(i)));

@@ -451,7 +451,8 @@ class OpenMeteoProviderTest {
                     "wave_height": [null, null],
                     "wave_direction": [null, null],
                     "wave_period": [null, null],
-                    "sea_surface_temperature": [null, null]
+                    "sea_surface_temperature": [null, null],
+                    "sea_level_height_msl": [null, null]
                   }
                 }
                 """);
@@ -463,6 +464,7 @@ class OpenMeteoProviderTest {
         assertThat(result.waveHeightMeters()).isNull();
         assertThat(result.waveDirectionDegrees()).isNull();
         assertThat(result.wavePeriodSeconds()).isNull();
+        assertThat(result.tideEvents()).isEmpty();
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.vidi.weather.util;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.vidi.weather.model.TideEvent;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +27,16 @@ class TidePeakDetectorTest {
         List<String> times = List.of("00:00", "01:00");
 
         assertThat(TidePeakDetector.detect(times, null)).isEmpty();
+    }
+
+    @Test
+    void skipsNullReadings_withoutThrowing() {
+        // Open-Meteo returns a populated `time` array with null sea_level_height_msl entries
+        // for inland cities the marine model doesn't cover.
+        List<String> times = List.of("00:00", "01:00", "02:00", "03:00");
+        List<Double> heights = Arrays.asList(null, null, null, null);
+
+        assertThat(TidePeakDetector.detect(times, heights)).isEmpty();
     }
 
     @Test
