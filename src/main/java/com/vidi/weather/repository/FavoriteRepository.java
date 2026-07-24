@@ -10,4 +10,6 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
     List<Favorite> findByUserOrderByCreatedAtDesc(User user);
 
     boolean existsByUserAndCityIgnoreCase(User user, String city);
+
+    long deleteByUserAndCityIgnoreCase(User user, String city);
 }

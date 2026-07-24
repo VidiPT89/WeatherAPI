@@ -27,6 +27,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -163,5 +164,13 @@ public class WeatherController {
             @Valid @RequestBody FavoriteRequest request, @AuthenticationPrincipal AuthenticatedUser principal) {
         FavoriteResponse favorite = favoriteService.add(principal.getUser(), request.city());
         return ResponseEntity.status(HttpStatus.CREATED).body(favorite);
+    }
+
+    @DeleteMapping("/favorites")
+    @Operation(summary = "Remove a city from the authenticated user's favorites")
+    public ResponseEntity<Void> removeFavorite(
+            @RequestParam String city, @AuthenticationPrincipal AuthenticatedUser principal) {
+        favoriteService.remove(principal.getUser(), city);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -4,6 +4,7 @@ import com.vidi.weather.dto.FavoriteResponse;
 import com.vidi.weather.entity.Favorite;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.FavoriteAlreadyExistsException;
+import com.vidi.weather.exception.FavoriteNotFoundException;
 import com.vidi.weather.repository.FavoriteRepository;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -31,6 +32,13 @@ public class FavoriteService {
             return toResponse(favorite);
         } catch (DataIntegrityViolationException alreadyExists) {
             throw new FavoriteAlreadyExistsException(city);
+        }
+    }
+
+    public void remove(User user, String city) {
+        long deleted = favoriteRepository.deleteByUserAndCityIgnoreCase(user, city);
+        if (deleted == 0) {
+            throw new FavoriteNotFoundException(city);
         }
     }
 

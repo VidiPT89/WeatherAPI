@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -15,6 +16,7 @@ import com.vidi.weather.dto.FavoriteRequest;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.CityNotFoundException;
 import com.vidi.weather.exception.FavoriteAlreadyExistsException;
+import com.vidi.weather.exception.FavoriteNotFoundException;
 import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.model.ForecastData;
@@ -271,5 +273,28 @@ class WeatherControllerTest {
 
         mockMvc.perform(get("/api/v1/weather/favorites").with(user(authenticatedUser)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void returns204_whenFavoriteIsRemoved() throws Exception {
+        mockMvc.perform(delete("/api/v1/weather/favorites")
+                        .param("city", "Lisboa")
+                        .with(user(authenticatedUser))
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+
+        org.mockito.Mockito.verify(favoriteService).remove(principalUser, "Lisboa");
+    }
+
+    @Test
+    void returns404_whenRemovingACityThatIsNotAFavorite() throws Exception {
+        org.mockito.Mockito.doThrow(new FavoriteNotFoundException("Atlantis"))
+                .when(favoriteService).remove(principalUser, "Atlantis");
+
+        mockMvc.perform(delete("/api/v1/weather/favorites")
+                        .param("city", "Atlantis")
+                        .with(user(authenticatedUser))
+                        .with(csrf()))
+                .andExpect(status().isNotFound());
     }
 }

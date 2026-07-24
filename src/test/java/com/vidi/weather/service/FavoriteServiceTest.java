@@ -9,6 +9,7 @@ import com.vidi.weather.dto.FavoriteResponse;
 import com.vidi.weather.entity.Favorite;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.FavoriteAlreadyExistsException;
+import com.vidi.weather.exception.FavoriteNotFoundException;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.repository.FavoriteRepository;
 import java.util.List;
@@ -59,6 +60,23 @@ class FavoriteServiceTest {
 
         assertThatThrownBy(() -> favoriteService.add(user, "Lisboa"))
                 .isInstanceOf(FavoriteAlreadyExistsException.class);
+    }
+
+    @Test
+    void removesFavoriteWhenItExists() {
+        when(favoriteRepository.deleteByUserAndCityIgnoreCase(user, "Lisboa")).thenReturn(1L);
+
+        favoriteService.remove(user, "Lisboa");
+
+        org.mockito.Mockito.verify(favoriteRepository).deleteByUserAndCityIgnoreCase(user, "Lisboa");
+    }
+
+    @Test
+    void throwsWhenRemovingACityThatIsNotAFavorite() {
+        when(favoriteRepository.deleteByUserAndCityIgnoreCase(user, "Lisboa")).thenReturn(0L);
+
+        assertThatThrownBy(() -> favoriteService.remove(user, "Lisboa"))
+                .isInstanceOf(FavoriteNotFoundException.class);
     }
 
     @Test

@@ -46,6 +46,26 @@ class FavoriteRepositoryTest {
     }
 
     @Test
+    void deleteByUserAndCityIgnoreCaseRemovesTheMatchingRowAndIsCaseInsensitive() {
+        User user = userRepository.save(new User(uniqueEmail(), "hash", Units.METRIC));
+        favoriteRepository.saveAndFlush(new Favorite(user, "Lisboa"));
+
+        long deleted = favoriteRepository.deleteByUserAndCityIgnoreCase(user, "lisboa");
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(favoriteRepository.existsByUserAndCityIgnoreCase(user, "Lisboa")).isFalse();
+    }
+
+    @Test
+    void deleteByUserAndCityIgnoreCaseReturnsZeroWhenNoMatch() {
+        User user = userRepository.save(new User(uniqueEmail(), "hash", Units.METRIC));
+
+        long deleted = favoriteRepository.deleteByUserAndCityIgnoreCase(user, "Atlantis");
+
+        assertThat(deleted).isEqualTo(0);
+    }
+
+    @Test
     void enforcesUniqueUserCityConstraint() {
         User user = userRepository.save(new User(uniqueEmail(), "hash", Units.METRIC));
         favoriteRepository.saveAndFlush(new Favorite(user, "Lisboa"));
