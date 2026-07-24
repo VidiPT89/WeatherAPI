@@ -49,4 +49,29 @@ class AuthRateLimitIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isTooManyRequests());
     }
+
+    /**
+     * A client can freely set whatever value it wants at the front of {@code X-Forwarded-For},
+     * but not the entry our own reverse proxy appends at the end -- so varying only the claimed
+     * (leftmost) origin on every request must not let the limit be dodged.
+     */
+    @Test
+    void rateLimitIsKeyedOnTheLastForwardedForHop_notTheClientClaimedFirstHop() throws Exception {
+        LoginRequest request = new LoginRequest("nobody@example.com", "wrong-password");
+        String realProxyHop = "203.0.113.9";
+
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .header("X-Forwarded-For", "10.0.0." + i + ", " + realProxyHop)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-Forwarded-For", "10.0.0.99, " + realProxyHop)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests());
+    }
 }
