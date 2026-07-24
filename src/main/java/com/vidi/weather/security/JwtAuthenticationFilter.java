@@ -8,6 +8,7 @@ import java.io.IOException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -43,7 +44,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String email = jwtService.extractEmail(token);
-        UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+        UserDetails userDetails;
+        try {
+            userDetails = userDetailsService.loadUserByUsername(email);
+        } catch (UsernameNotFoundException userDeletedSinceTokenWasIssued) {
+            // A previously-issued, still-unexpired JWT for a user who no longer exists (deleted
+            // after login). This filter runs before DispatcherServlet, so GlobalExceptionHandler
+            // never sees an exception thrown from here -- leaving the security context empty is
+            // what turns this into the normal 401 (via RestAuthenticationEntryPoint) instead of a
+            // container-level 500.
+            return;
+        }
 
         var authToken = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

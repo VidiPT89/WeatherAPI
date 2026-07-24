@@ -55,6 +55,21 @@ class UserServiceTest {
     }
 
     @Test
+    void translatesAConcurrentDuplicateRegistrationIntoTheSameFriendlyException() {
+        // The exists-check above and the save aren't atomic: two concurrent registrations for the
+        // same email can both pass the check and race to insert. The DB's unique constraint is
+        // the real backstop -- this proves its violation surfaces as the same exception a
+        // synchronous duplicate would, not a raw DataIntegrityViolationException as a 500.
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encoded-hash");
+        when(userRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> userService.register("test@example.com", "password123"))
+                .isInstanceOf(EmailAlreadyRegisteredException.class);
+    }
+
+    @Test
     void updatePreferredUnitsPersistsANewImmutableCopy() {
         User existing = new User("test@example.com", "hash", Units.METRIC);
         when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));

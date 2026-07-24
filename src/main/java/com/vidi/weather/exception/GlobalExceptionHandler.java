@@ -4,12 +4,15 @@ import com.vidi.weather.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -67,6 +70,28 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FavoriteAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleFavoriteAlreadyExists(FavoriteAlreadyExistsException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request, ErrorCode.FAVORITE_ALREADY_EXISTS);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMalformedBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Malformed request body.", request, ErrorCode.VALIDATION_FAILED);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        String message = "Invalid value for parameter '%s'.".formatted(ex.getName());
+        return buildResponse(HttpStatus.BAD_REQUEST, message, request, ErrorCode.VALIDATION_FAILED);
+    }
+
+    /**
+     * Backstop for a database constraint violation that reaches here untranslated by a service
+     * (the known TOCTOU races on registration/favorites are already caught and translated to
+     * their specific 409s in {@code UserService}/{@code FavoriteService} before this ever runs).
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Unhandled data integrity violation: {}", ex.getMessage());
+        return buildResponse(HttpStatus.CONFLICT, "The request conflicts with existing data.", request, ErrorCode.CONFLICT);
     }
 
     @ExceptionHandler(WeatherServiceException.class)

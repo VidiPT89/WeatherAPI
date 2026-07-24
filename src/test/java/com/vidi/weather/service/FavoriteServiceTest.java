@@ -48,6 +48,20 @@ class FavoriteServiceTest {
     }
 
     @Test
+    void translatesAConcurrentDuplicateInsertIntoTheSameFriendlyException() {
+        // The exists-check above and the save aren't atomic: two requests can both pass the
+        // check for the same city and race to insert. The DB's unique index is the real backstop
+        // -- this proves its violation surfaces as the same exception a synchronous duplicate
+        // would, not a raw DataIntegrityViolationException reaching the client as a 500.
+        when(favoriteRepository.existsByUserAndCityIgnoreCase(user, "Lisboa")).thenReturn(false);
+        when(favoriteRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> favoriteService.add(user, "Lisboa"))
+                .isInstanceOf(FavoriteAlreadyExistsException.class);
+    }
+
+    @Test
     void listsFavoritesForUser() {
         when(favoriteRepository.findByUserOrderByCreatedAtDesc(user))
                 .thenReturn(List.of(new Favorite(user, "Porto")));

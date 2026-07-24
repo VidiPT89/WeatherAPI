@@ -4,6 +4,7 @@ import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.EmailAlreadyRegisteredException;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.repository.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -22,8 +23,14 @@ public class UserService {
         if (userRepository.existsByEmail(email)) {
             throw new EmailAlreadyRegisteredException(email);
         }
-        User user = new User(email, passwordEncoder.encode(rawPassword), Units.METRIC);
-        return userRepository.save(user);
+        // Same exists-check-then-save gap as FavoriteService.add: the DB's unique constraint on
+        // email is the real backstop for two concurrent registrations of the same address.
+        try {
+            User user = new User(email, passwordEncoder.encode(rawPassword), Units.METRIC);
+            return userRepository.save(user);
+        } catch (DataIntegrityViolationException alreadyExists) {
+            throw new EmailAlreadyRegisteredException(email);
+        }
     }
 
     public User findByEmail(String email) {
