@@ -28,6 +28,7 @@ import com.vidi.weather.service.ForecastService;
 import com.vidi.weather.service.MarineService;
 import com.vidi.weather.service.SearchHistoryService;
 import com.vidi.weather.service.WeatherAggregatorService;
+import com.vidi.weather.service.WeatherInsightsService;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +54,9 @@ class WeatherControllerTest {
 
     @MockitoBean
     private MarineService marineService;
+
+    @MockitoBean
+    private WeatherInsightsService weatherInsightsService;
 
     @MockitoBean
     private SearchHistoryService searchHistoryService;
@@ -164,8 +168,9 @@ class WeatherControllerTest {
 
     @Test
     void returns200WithMarineConditions_whenCityIsCoastal() throws Exception {
+        com.vidi.weather.model.TideEvent tideEvent = new com.vidi.weather.model.TideEvent("high", "2024-01-01T14:00");
         com.vidi.weather.model.MarineData marineData = new com.vidi.weather.model.MarineData(
-                "Lisboa", "Portugal", Units.METRIC, "open-meteo", 16.8, 1.2, 270.0, 6.5);
+                "Lisboa", "Portugal", Units.METRIC, "open-meteo", 16.8, 1.2, 270.0, 6.5, java.util.List.of(tideEvent));
         when(marineService.getMarineConditions(eq("Lisboa"), eq(Units.METRIC)))
                 .thenReturn(new com.vidi.weather.model.MarineResult(marineData, false));
 
@@ -173,20 +178,23 @@ class WeatherControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.city").value("Lisboa"))
                 .andExpect(jsonPath("$.waterTemperature").value(16.8))
-                .andExpect(jsonPath("$.waveHeightMeters").value(1.2));
+                .andExpect(jsonPath("$.waveHeightMeters").value(1.2))
+                .andExpect(jsonPath("$.tideEvents[0].type").value("high"))
+                .andExpect(jsonPath("$.tideEvents[0].time").value("2024-01-01T14:00"));
     }
 
     @Test
     void returns200WithNullFields_whenCityHasNoMarineData() throws Exception {
         com.vidi.weather.model.MarineData marineData = new com.vidi.weather.model.MarineData(
-                "Madrid", "Spain", Units.METRIC, "open-meteo", null, null, null, null);
+                "Madrid", "Spain", Units.METRIC, "open-meteo", null, null, null, null, java.util.List.of());
         when(marineService.getMarineConditions(eq("Madrid"), eq(Units.METRIC)))
                 .thenReturn(new com.vidi.weather.model.MarineResult(marineData, false));
 
         mockMvc.perform(get("/api/v1/weather/marine").param("city", "Madrid").with(user(authenticatedUser)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.city").value("Madrid"))
-                .andExpect(jsonPath("$.waterTemperature").isEmpty());
+                .andExpect(jsonPath("$.waterTemperature").isEmpty())
+                .andExpect(jsonPath("$.tideEvents").isEmpty());
     }
 
     @Test
@@ -194,6 +202,32 @@ class WeatherControllerTest {
         when(marineService.getMarineConditions(any(), any())).thenThrow(new CityNotFoundException("Atlantis"));
 
         mockMvc.perform(get("/api/v1/weather/marine").param("city", "Atlantis").with(user(authenticatedUser)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void returns200WithInsights_whenCityIsValid() throws Exception {
+        var insightsData = new com.vidi.weather.model.WeatherInsightsData(
+                "Lisboa", "Portugal",
+                new com.vidi.weather.model.MoonPhaseInfo("Full Moon", 98),
+                "Moderate", 72, "Good", "Fair");
+        when(weatherInsightsService.getInsights(eq("Lisboa"), eq(Units.METRIC))).thenReturn(insightsData);
+
+        mockMvc.perform(get("/api/v1/weather/insights").param("city", "Lisboa").with(user(authenticatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Lisboa"))
+                .andExpect(jsonPath("$.moonPhase.phase").value("Full Moon"))
+                .andExpect(jsonPath("$.uvRiskLabel").value("Moderate"))
+                .andExpect(jsonPath("$.outdoorActivityScore").value(72))
+                .andExpect(jsonPath("$.outdoorActivityLabel").value("Good"))
+                .andExpect(jsonPath("$.fishingConditionLabel").value("Fair"));
+    }
+
+    @Test
+    void returns404_whenInsightsCityNotFound() throws Exception {
+        when(weatherInsightsService.getInsights(any(), any())).thenThrow(new CityNotFoundException("Atlantis"));
+
+        mockMvc.perform(get("/api/v1/weather/insights").param("city", "Atlantis").with(user(authenticatedUser)))
                 .andExpect(status().isNotFound());
     }
 

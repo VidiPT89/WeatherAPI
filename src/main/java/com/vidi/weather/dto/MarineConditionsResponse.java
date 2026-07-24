@@ -1,6 +1,8 @@
 package com.vidi.weather.dto;
 
 import com.vidi.weather.model.MarineResult;
+import com.vidi.weather.model.TideEvent;
+import java.util.List;
 
 public record MarineConditionsResponse(
         String city,
@@ -11,7 +13,8 @@ public record MarineConditionsResponse(
         Double waterTemperature,
         Double waveHeightMeters,
         Double waveDirectionDegrees,
-        Double wavePeriodSeconds
+        Double wavePeriodSeconds,
+        List<TideEvent> tideEvents
 ) {
 
     public static MarineConditionsResponse from(MarineResult result) {
@@ -25,7 +28,8 @@ public record MarineConditionsResponse(
                 data.waterTemperature(),
                 data.waveHeightMeters(),
                 data.waveDirectionDegrees(),
-                data.wavePeriodSeconds()
+                data.wavePeriodSeconds(),
+                data.tideEvents()
         );
     }
 }

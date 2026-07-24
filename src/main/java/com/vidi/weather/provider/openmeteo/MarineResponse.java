@@ -13,7 +13,8 @@ public record MarineResponse(Hourly hourly) {
             @JsonProperty("wave_height") List<Double> waveHeight,
             @JsonProperty("wave_direction") List<Double> waveDirection,
             @JsonProperty("wave_period") List<Double> wavePeriod,
-            @JsonProperty("sea_surface_temperature") List<Double> seaSurfaceTemperature
+            @JsonProperty("sea_surface_temperature") List<Double> seaSurfaceTemperature,
+            @JsonProperty("sea_level_height_msl") List<Double> seaLevelHeightMsl
     ) {
     }
 }

@@ -14,6 +14,7 @@ import com.vidi.weather.provider.openmeteo.ForecastResponse;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import com.vidi.weather.provider.openmeteo.MarineResponse;
+import com.vidi.weather.util.TidePeakDetector;
 import com.vidi.weather.util.WeatherCodeMapper;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -117,7 +118,8 @@ public class OpenMeteoProvider implements WeatherProvider {
                 hasReadings ? hourly.seaSurfaceTemperature().get(0) : null,
                 hasReadings ? hourly.waveHeight().get(0) : null,
                 hasReadings ? hourly.waveDirection().get(0) : null,
-                hasReadings ? hourly.wavePeriod().get(0) : null
+                hasReadings ? hourly.wavePeriod().get(0) : null,
+                hasReadings ? TidePeakDetector.detect(hourly.time(), hourly.seaLevelHeightMsl()) : List.of()
         );
     }
 
@@ -231,7 +233,7 @@ public class OpenMeteoProvider implements WeatherProvider {
         String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().marineUrl())
                 .queryParam("latitude", location.latitude())
                 .queryParam("longitude", location.longitude())
-                .queryParam("hourly", "wave_height,wave_direction,wave_period,sea_surface_temperature")
+                .queryParam("hourly", "wave_height,wave_direction,wave_period,sea_surface_temperature,sea_level_height_msl")
                 .queryParam("temperature_unit", temperatureUnit)
                 .queryParam("timezone", "auto")
                 .queryParam("forecast_days", 1)

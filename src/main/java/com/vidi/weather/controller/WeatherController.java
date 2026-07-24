@@ -6,10 +6,12 @@ import com.vidi.weather.dto.FavoriteResponse;
 import com.vidi.weather.dto.ForecastWeatherResponse;
 import com.vidi.weather.dto.MarineConditionsResponse;
 import com.vidi.weather.dto.SearchHistoryResponse;
+import com.vidi.weather.dto.WeatherInsightsResponse;
 import com.vidi.weather.dto.WeatherResponse;
 import com.vidi.weather.model.ForecastResult;
 import com.vidi.weather.model.MarineResult;
 import com.vidi.weather.model.Units;
+import com.vidi.weather.model.WeatherInsightsData;
 import com.vidi.weather.model.WeatherResult;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.FavoriteService;
@@ -17,6 +19,7 @@ import com.vidi.weather.service.ForecastService;
 import com.vidi.weather.service.MarineService;
 import com.vidi.weather.service.SearchHistoryService;
 import com.vidi.weather.service.WeatherAggregatorService;
+import com.vidi.weather.service.WeatherInsightsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -39,6 +42,7 @@ public class WeatherController {
     private final WeatherAggregatorService weatherAggregatorService;
     private final ForecastService forecastService;
     private final MarineService marineService;
+    private final WeatherInsightsService weatherInsightsService;
     private final SearchHistoryService searchHistoryService;
     private final FavoriteService favoriteService;
 
@@ -46,11 +50,13 @@ public class WeatherController {
             WeatherAggregatorService weatherAggregatorService,
             ForecastService forecastService,
             MarineService marineService,
+            WeatherInsightsService weatherInsightsService,
             SearchHistoryService searchHistoryService,
             FavoriteService favoriteService) {
         this.weatherAggregatorService = weatherAggregatorService;
         this.forecastService = forecastService;
         this.marineService = marineService;
+        this.weatherInsightsService = weatherInsightsService;
         this.searchHistoryService = searchHistoryService;
         this.favoriteService = favoriteService;
     }
@@ -105,6 +111,23 @@ public class WeatherController {
         Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
         MarineResult result = marineService.getMarineConditions(city, parsedUnits);
         return ResponseEntity.ok(MarineConditionsResponse.from(result));
+    }
+
+    @GetMapping("/insights")
+    @Operation(summary = "Get derived weather insights (moon phase, UV risk, outdoor-activity score, fishing "
+            + "conditions) for a city — fishingConditionLabel comes back null for cities with no marine data")
+    public ResponseEntity<WeatherInsightsResponse> getWeatherInsights(
+            @RequestParam String city,
+            @RequestParam(required = false) String units,
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+
+        if (city.isBlank()) {
+            throw new IllegalArgumentException("Query parameter 'city' must not be blank");
+        }
+
+        Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
+        WeatherInsightsData data = weatherInsightsService.getInsights(city, parsedUnits);
+        return ResponseEntity.ok(WeatherInsightsResponse.from(data));
     }
 
     @GetMapping("/compare")

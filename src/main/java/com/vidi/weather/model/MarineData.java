@@ -1,5 +1,7 @@
 package com.vidi.weather.model;
 
+import java.util.List;
+
 public record MarineData(
         String city,
         String country,
@@ -8,6 +10,7 @@ public record MarineData(
         Double waterTemperature,
         Double waveHeightMeters,
         Double waveDirectionDegrees,
-        Double wavePeriodSeconds
+        Double wavePeriodSeconds,
+        List<TideEvent> tideEvents
 ) {
 }

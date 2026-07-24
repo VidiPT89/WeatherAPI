@@ -15,6 +15,7 @@ import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.model.ForecastData;
 import com.vidi.weather.model.MarineData;
+import com.vidi.weather.model.TideEvent;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
@@ -395,7 +396,8 @@ class OpenMeteoProviderTest {
                     "wave_height": [1.2, 1.3],
                     "wave_direction": [270.0, 272.0],
                     "wave_period": [6.5, 6.7],
-                    "sea_surface_temperature": [16.8, 16.7]
+                    "sea_surface_temperature": [16.8, 16.7],
+                    "sea_level_height_msl": [0.1, 0.2]
                   }
                 }
                 """);
@@ -409,6 +411,32 @@ class OpenMeteoProviderTest {
         assertThat(result.waveHeightMeters()).isEqualTo(1.2);
         assertThat(result.waveDirectionDegrees()).isEqualTo(270.0);
         assertThat(result.wavePeriodSeconds()).isEqualTo(6.5);
+    }
+
+    @Test
+    void returnsTideEvents_derivedFromSeaLevelHeightSeries() {
+        stubGeocoding("Cascais", """
+                {"results": [{"name": "Cascais", "country": "Portugal", "latitude": 38.6979, "longitude": -9.4215, "population": 206479}]}
+                """);
+        stubMarine("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00", "2024-01-01T01:00", "2024-01-01T02:00", "2024-01-01T03:00", "2024-01-01T04:00"],
+                    "wave_height": [1.2, 1.2, 1.2, 1.2, 1.2],
+                    "wave_direction": [270.0, 270.0, 270.0, 270.0, 270.0],
+                    "wave_period": [6.5, 6.5, 6.5, 6.5, 6.5],
+                    "sea_surface_temperature": [16.8, 16.8, 16.8, 16.8, 16.8],
+                    "sea_level_height_msl": [0.2, 0.9, 0.3, -0.6, 0.1]
+                  }
+                }
+                """);
+
+        MarineData result = provider.fetchMarineConditions("Cascais", Units.METRIC);
+
+        assertThat(result.tideEvents()).containsExactly(
+                new TideEvent(TideEvent.HIGH, "2024-01-01T01:00"),
+                new TideEvent(TideEvent.LOW, "2024-01-01T03:00")
+        );
     }
 
     @Test
