@@ -35,12 +35,17 @@ public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
+    private final RefreshTokenFamilyRevoker familyRevoker;
     private final long expirationDays;
 
     public RefreshTokenService(
-            RefreshTokenRepository refreshTokenRepository, UserRepository userRepository, JwtProperties properties) {
+            RefreshTokenRepository refreshTokenRepository,
+            UserRepository userRepository,
+            RefreshTokenFamilyRevoker familyRevoker,
+            JwtProperties properties) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
+        this.familyRevoker = familyRevoker;
         this.expirationDays = properties.refreshExpirationDays();
     }
 
@@ -67,7 +72,7 @@ public class RefreshTokenService {
             // means whoever is presenting it either has a very out-of-date copy or stole it at
             // some point in the chain. Revoke every descendant too, forcing the legitimate holder
             // of the current token to also re-authenticate rather than leaving it usable.
-            revokeFamily(current);
+            familyRevoker.revokeFamily(current);
             throw new InvalidRefreshTokenException();
         }
 
@@ -88,23 +93,6 @@ public class RefreshTokenService {
         refreshTokenRepository.findByTokenHash(hash(rawToken))
                 .filter(token -> !token.isRevoked())
                 .ifPresent(token -> refreshTokenRepository.save(token.revokedBy(null)));
-    }
-
-    /** Walks the {@code replacedBy} chain forward from a compromised token, revoking every
-     * descendant -- including whichever one is currently active -- so the whole lineage needs
-     * a fresh login. */
-    private void revokeFamily(RefreshToken compromised) {
-        RefreshToken current = compromised;
-        while (current.getReplacedBy() != null) {
-            RefreshToken next = refreshTokenRepository.findById(current.getReplacedBy()).orElse(null);
-            if (next == null) {
-                return;
-            }
-            if (!next.isRevoked()) {
-                refreshTokenRepository.save(next.revokedBy(null));
-            }
-            current = next;
-        }
     }
 
     private boolean isWithinRotationGraceWindow(RefreshToken token) {

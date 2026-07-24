@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +34,9 @@ class RefreshTokenServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private RefreshTokenFamilyRevoker familyRevoker;
+
     private RefreshTokenService refreshTokenService;
 
     private final User user = withId(new User("test@example.com", "hash", Units.METRIC), 1L);
@@ -42,7 +44,8 @@ class RefreshTokenServiceTest {
 
     @BeforeEach
     void setUp() {
-        refreshTokenService = new RefreshTokenService(refreshTokenRepository, userRepository, new JwtProperties("secret", 60, 30));
+        refreshTokenService = new RefreshTokenService(
+                refreshTokenRepository, userRepository, familyRevoker, new JwtProperties("secret", 60, 30));
     }
 
     @Test
@@ -107,29 +110,20 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    void rotatingAStaleTokenRevokesTheWholeDescendantChain() {
+    void rotatingAStaleTokenDelegatesFamilyRevocationToItsOwnTransaction() {
+        // The actual chain-walking logic is covered by RefreshTokenFamilyRevokerTest. This just
+        // verifies rotate() hands off to it -- delegating (rather than doing the revocation
+        // inline) is required precisely because it must survive the InvalidRefreshTokenException
+        // thrown right after, which would otherwise roll back an inline revocation along with it.
         RefreshToken compromised = withId(activeToken(), 201L);
         ReflectionTestUtils.setField(compromised, "revokedAt", Instant.now().minus(1, ChronoUnit.MINUTES));
         ReflectionTestUtils.setField(compromised, "replacedBy", 202L);
-
-        RefreshToken intermediate = withId(activeToken(), 202L); // already rotated further itself
-        ReflectionTestUtils.setField(intermediate, "revokedAt", Instant.now());
-        ReflectionTestUtils.setField(intermediate, "replacedBy", 203L);
-
-        RefreshToken currentlyActive = withId(activeToken(), 203L); // the legitimate holder's live token
-
         when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(compromised));
-        when(refreshTokenRepository.findById(202L)).thenReturn(Optional.of(intermediate));
-        when(refreshTokenRepository.findById(203L)).thenReturn(Optional.of(currentlyActive));
-        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
 
         assertThatThrownBy(() -> refreshTokenService.rotate("compromised"))
                 .isInstanceOf(InvalidRefreshTokenException.class);
 
-        // The already-revoked intermediate isn't re-saved, only the still-active descendant.
-        verify(refreshTokenRepository, times(1)).save(captor.capture());
-        assertThat(captor.getValue().getId()).isEqualTo(203L);
-        assertThat(captor.getValue().isRevoked()).isTrue();
+        verify(familyRevoker).revokeFamily(compromised);
     }
 
     @Test
