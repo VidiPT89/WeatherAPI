@@ -9,6 +9,7 @@ import com.vidi.weather.repository.FavoriteRepository;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FavoriteService {
@@ -35,6 +36,13 @@ public class FavoriteService {
         }
     }
 
+    /**
+     * The derived {@code deleteBy} query loads matching entities and calls
+     * {@code EntityManager.remove()} on each -- unlike {@code save()}, that needs an active
+     * transaction, which isn't provided automatically outside of one (e.g. a {@code @DataJpaTest}
+     * masks this because each test itself already runs inside a transaction).
+     */
+    @Transactional
     public void remove(User user, String city) {
         long deleted = favoriteRepository.deleteByUserAndCityIgnoreCase(user, city);
         if (deleted == 0) {

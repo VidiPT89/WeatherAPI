@@ -3,6 +3,7 @@ package com.vidi.weather;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vidi.weather.dto.AuthResponse;
+import com.vidi.weather.dto.FavoriteRequest;
 import com.vidi.weather.dto.LoginRequest;
 import com.vidi.weather.dto.RefreshRequest;
 import com.vidi.weather.dto.RegisterRequest;
@@ -194,6 +196,44 @@ class AuthAndSecurityIntegrationTest {
                 .andExpect(jsonPath("$.totalSearches").value(Matchers.greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.mostSearchedCity").isNotEmpty())
                 .andExpect(jsonPath("$.mostSearchedCityCount").value(Matchers.greaterThanOrEqualTo(1)));
+    }
+
+    /**
+     * Runs through the real {@code FavoriteService}/{@code FavoriteRepository} (only
+     * {@code weatherAggregatorService} is mocked in this class) with no enclosing test
+     * transaction -- unlike a {@code @DataJpaTest}, this exercises the exact transactional
+     * context a real request runs under, which is what caught {@code remove()} needing its own
+     * {@code @Transactional} in the first place.
+     */
+    @Test
+    void addingThenRemovingAFavoriteDeletesItForReal() throws Exception {
+        String token = registerAndGetToken(uniqueEmail());
+
+        mockMvc.perform(post("/api/v1/weather/favorites")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new FavoriteRequest("Lisboa"))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/api/v1/weather/favorites")
+                        .header("Authorization", "Bearer " + token)
+                        .param("city", "Lisboa"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/weather/favorites").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void removingACityThatWasNeverFavoritedReturnsNotFound() throws Exception {
+        String token = registerAndGetToken(uniqueEmail());
+
+        mockMvc.perform(delete("/api/v1/weather/favorites")
+                        .header("Authorization", "Bearer " + token)
+                        .param("city", "Atlantis"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FAVORITE_NOT_FOUND"));
     }
 
     private void stubWeatherAggregator() {
