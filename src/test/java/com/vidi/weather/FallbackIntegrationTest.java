@@ -117,32 +117,6 @@ class FallbackIntegrationTest {
                 .isEqualTo(hitsBeforeNextCall);
     }
 
-    @Test
-    void compareEndpointReturnsBothProvidersSideBySide() throws Exception {
-        stubOpenMeteoSuccess();
-        stubOpenWeatherMapSuccess();
-
-        mockMvc.perform(get("/api/v1/weather/compare").param("city", "Lisboa").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.results[0].provider").value("open-meteo"))
-                .andExpect(jsonPath("$.results[0].success").value(true))
-                .andExpect(jsonPath("$.results[1].provider").value("open-weather-map"))
-                .andExpect(jsonPath("$.results[1].success").value(true));
-    }
-
-    @Test
-    void compareEndpointReportsPerProviderFailure_withoutFailingTheWholeRequest() throws Exception {
-        stubOpenMeteoFailure(500);
-        stubOpenWeatherMapSuccess();
-
-        mockMvc.perform(get("/api/v1/weather/compare").param("city", "Lisboa").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.results[0].provider").value("open-meteo"))
-                .andExpect(jsonPath("$.results[0].success").value(false))
-                .andExpect(jsonPath("$.results[0].errorMessage").value("Provider unavailable"))
-                .andExpect(jsonPath("$.results[1].success").value(true));
-    }
-
     private void stubOpenMeteoSuccess() {
         wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/geo/v1/search"))
                 .willReturn(WireMock.aResponse().withStatus(200)

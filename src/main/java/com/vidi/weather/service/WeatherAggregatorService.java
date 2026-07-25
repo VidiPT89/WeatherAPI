@@ -1,10 +1,6 @@
 package com.vidi.weather.service;
 
-import com.vidi.weather.dto.CompareResponse;
-import com.vidi.weather.dto.ProviderComparisonEntry;
-import com.vidi.weather.dto.WeatherResponse;
 import com.vidi.weather.exception.CityNotFoundException;
-import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.exception.WeatherServiceException;
 import com.vidi.weather.model.Units;
@@ -60,30 +56,5 @@ public class WeatherAggregatorService {
         }
 
         throw lastFailure != null ? lastFailure : new ProviderUnavailableException("all-providers", null);
-    }
-
-    /**
-     * Queries every configured provider independently for the same city, so callers can see
-     * how sources compare side by side. A failing provider yields an error entry instead of
-     * failing the whole request, and never exposes the provider's raw error message.
-     */
-    public CompareResponse compareProviders(String city, Units units) {
-        List<ProviderComparisonEntry> entries = providers.stream()
-                .map(provider -> compareOne(provider, city, units))
-                .toList();
-        return new CompareResponse(city, entries);
-    }
-
-    private ProviderComparisonEntry compareOne(WeatherProvider provider, String city, Units units) {
-        try {
-            WeatherData data = resilienceExecutor.call(provider, city, units);
-            return ProviderComparisonEntry.success(WeatherResponse.from(new WeatherResult(data, false)));
-        } catch (CityNotFoundException ex) {
-            return ProviderComparisonEntry.failure(provider.getProviderName(), "City not found");
-        } catch (ProviderQuotaExceededException ex) {
-            return ProviderComparisonEntry.failure(provider.getProviderName(), "Provider quota exceeded");
-        } catch (WeatherServiceException | CallNotPermittedException ex) {
-            return ProviderComparisonEntry.failure(provider.getProviderName(), "Provider unavailable");
-        }
     }
 }

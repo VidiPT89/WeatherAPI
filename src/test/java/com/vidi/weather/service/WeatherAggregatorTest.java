@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.vidi.weather.dto.CompareResponse;
 import com.vidi.weather.exception.CityNotFoundException;
 import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.model.Units;
@@ -109,35 +108,5 @@ class WeatherAggregatorTest {
         assertThatThrownBy(() -> aggregatorService.getCurrentWeather("Atlantis", Units.METRIC))
                 .isInstanceOf(CityNotFoundException.class);
         verify(resilienceExecutor, never()).call(eq(secondaryProvider), any(), any());
-    }
-
-    @Test
-    void compareProvidersReturnsResultsFromEachProviderIndependently() {
-        when(secondaryProvider.getProviderName()).thenReturn("open-weather-map");
-        when(resilienceExecutor.call(primaryProvider, "Lisboa", Units.METRIC)).thenReturn(sampleData);
-        when(resilienceExecutor.call(secondaryProvider, "Lisboa", Units.METRIC))
-                .thenThrow(new ProviderUnavailableException("open-weather-map", new RuntimeException("down")));
-
-        CompareResponse response = aggregatorService.compareProviders("Lisboa", Units.METRIC);
-
-        assertThat(response.city()).isEqualTo("Lisboa");
-        assertThat(response.results()).hasSize(2);
-        assertThat(response.results().get(0).success()).isTrue();
-        assertThat(response.results().get(1).success()).isFalse();
-        assertThat(response.results().get(1).provider()).isEqualTo("open-weather-map");
-        assertThat(response.results().get(1).errorMessage()).isEqualTo("Provider unavailable");
-    }
-
-    @Test
-    void compareProvidersReportsCityNotFound_asAPerProviderFailure() {
-        when(secondaryProvider.getProviderName()).thenReturn("open-weather-map");
-        when(resilienceExecutor.call(primaryProvider, "Atlantis", Units.METRIC)).thenReturn(sampleData);
-        when(resilienceExecutor.call(secondaryProvider, "Atlantis", Units.METRIC))
-                .thenThrow(new CityNotFoundException("Atlantis"));
-
-        CompareResponse response = aggregatorService.compareProviders("Atlantis", Units.METRIC);
-
-        assertThat(response.results().get(1).success()).isFalse();
-        assertThat(response.results().get(1).errorMessage()).isEqualTo("City not found");
     }
 }
