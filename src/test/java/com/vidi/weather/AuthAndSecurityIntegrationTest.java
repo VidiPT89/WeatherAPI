@@ -15,9 +15,11 @@ import com.vidi.weather.dto.FavoriteRequest;
 import com.vidi.weather.dto.LoginRequest;
 import com.vidi.weather.dto.RefreshRequest;
 import com.vidi.weather.dto.RegisterRequest;
+import com.vidi.weather.model.Role;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.model.WeatherResult;
+import com.vidi.weather.repository.UserRepository;
 import com.vidi.weather.service.WeatherAggregatorService;
 import java.time.Instant;
 import java.util.UUID;
@@ -50,6 +52,9 @@ class AuthAndSecurityIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @MockitoBean
     private WeatherAggregatorService weatherAggregatorService;
@@ -181,9 +186,10 @@ class AuthAndSecurityIntegrationTest {
     }
 
     @Test
-    void statsEndpointReturnsAggregateCounts_whenAuthenticated() throws Exception {
+    void statsEndpointReturnsAggregateCounts_forAdmin() throws Exception {
         String email = uniqueEmail();
         String token = registerAndGetToken(email);
+        promoteToAdmin(email);
         stubWeatherAggregator();
 
         mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa")
@@ -196,6 +202,14 @@ class AuthAndSecurityIntegrationTest {
                 .andExpect(jsonPath("$.totalSearches").value(Matchers.greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.mostSearchedCity").isNotEmpty())
                 .andExpect(jsonPath("$.mostSearchedCityCount").value(Matchers.greaterThanOrEqualTo(1)));
+    }
+
+    @Test
+    void statsEndpointRejectsRegularUsers() throws Exception {
+        String token = registerAndGetToken(uniqueEmail());
+
+        mockMvc.perform(get("/api/v1/stats").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
     }
 
     /**
@@ -259,5 +273,11 @@ class AuthAndSecurityIntegrationTest {
 
     private String uniqueEmail() {
         return "auth-%s@example.com".formatted(UUID.randomUUID());
+    }
+
+    private void promoteToAdmin(String email) {
+        userRepository.findByEmail(email)
+                .map(user -> user.withRole(Role.ADMIN))
+                .ifPresent(userRepository::save);
     }
 }

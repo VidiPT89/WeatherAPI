@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.vidi.weather.dto.StatsResponse;
 import com.vidi.weather.entity.User;
+import com.vidi.weather.model.Role;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.StatsService;
@@ -26,15 +27,15 @@ class StatsControllerTest {
     @MockitoBean
     private StatsService statsService;
 
-    private final AuthenticatedUser authenticatedUser =
-            new AuthenticatedUser(new User("test@example.com", "hash", Units.METRIC));
+    private final AuthenticatedUser adminUser =
+            new AuthenticatedUser(new User("admin@example.com", "hash", Units.METRIC).withRole(Role.ADMIN));
 
     @Test
-    void returnsAggregateStats() throws Exception {
+    void returnsAggregateStats_forAdmin() throws Exception {
         when(statsService.getStats()).thenReturn(new StatsResponse(
                 5, 42, 7, "Lisboa", 10, new StatsResponse.CacheStats(30, 12, 0.71)));
 
-        mockMvc.perform(get("/api/v1/stats").with(user(authenticatedUser)))
+        mockMvc.perform(get("/api/v1/stats").with(user(adminUser)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalUsers").value(5))
                 .andExpect(jsonPath("$.totalSearches").value(42))
@@ -44,4 +45,7 @@ class StatsControllerTest {
                 .andExpect(jsonPath("$.cache.hitCount").value(30))
                 .andExpect(jsonPath("$.cache.missCount").value(12));
     }
+
+    // 403-for-non-admin is asserted in AuthAndSecurityIntegrationTest instead: @WebMvcTest
+    // doesn't load the app's SecurityConfig, so the hasRole("ADMIN") rule is never enforced here.
 }

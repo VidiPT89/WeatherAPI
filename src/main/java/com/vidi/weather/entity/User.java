@@ -1,5 +1,6 @@
 package com.vidi.weather.entity;
 
+import com.vidi.weather.model.Role;
 import com.vidi.weather.model.Units;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -29,6 +30,10 @@ public class User {
     @Column(name = "preferred_units", nullable = false)
     private Units preferredUnits;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -36,19 +41,24 @@ public class User {
     }
 
     public User(String email, String passwordHash, Units preferredUnits) {
-        this(null, email, passwordHash, preferredUnits, Instant.now());
+        this(null, email, passwordHash, preferredUnits, Role.USER, Instant.now());
     }
 
-    private User(Long id, String email, String passwordHash, Units preferredUnits, Instant createdAt) {
+    private User(Long id, String email, String passwordHash, Units preferredUnits, Role role, Instant createdAt) {
         this.id = id;
         this.email = email;
         this.passwordHash = passwordHash;
         this.preferredUnits = preferredUnits;
+        this.role = role;
         this.createdAt = createdAt;
     }
 
     public User withPreferredUnits(Units newPreferredUnits) {
-        return new User(id, email, passwordHash, newPreferredUnits, createdAt);
+        return new User(id, email, passwordHash, newPreferredUnits, role, createdAt);
+    }
+
+    public User withRole(Role newRole) {
+        return new User(id, email, passwordHash, preferredUnits, newRole, createdAt);
     }
 
     public Long getId() {
@@ -65,6 +75,10 @@ public class User {
 
     public Units getPreferredUnits() {
         return preferredUnits;
+    }
+
+    public Role getRole() {
+        return role;
     }
 
     public Instant getCreatedAt() {

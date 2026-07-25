@@ -71,6 +71,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**")
                         .permitAll()
+                        .requestMatchers("/api/v1/stats").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
