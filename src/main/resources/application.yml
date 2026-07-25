@@ -70,11 +70,12 @@ resilience4j:
         retry-exceptions:
           - com.vidi.weather.exception.ProviderUnavailableException
 
-# JWT_SECRET default below is a LOCAL DEV ONLY value, safe to keep in source
-# because it only signs tokens for a database that lives on localhost.
-# Any real deployment must override it via the JWT_SECRET environment variable.
+# No fallback for JWT_SECRET: a checked-in default -- even one labeled "local dev only" --
+# is a public value the moment this repo is public, and a silently-unset env var in any real
+# deployment would fall back to signing tokens with a secret anyone can read on GitHub.
+# Missing the env var should fail startup, not fail open.
 jwt:
-  secret: ${JWT_SECRET:OCmPQ/BnxKOAKv/4OfYjssQOOCuKOVawTEHC/Cp1v0GIOthc1FlQ6a5hph1Eri+U}
+  secret: ${JWT_SECRET}
   expiration-minutes: ${JWT_EXPIRATION_MINUTES:60}
   refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:30}
 
