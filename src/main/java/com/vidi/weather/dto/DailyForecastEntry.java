@@ -12,7 +12,15 @@ public record DailyForecastEntry(
         LocalDateTime sunrise,
         LocalDateTime sunset,
         double uvIndexMax,
-        int precipitationProbabilityMax
+        int precipitationProbabilityMax,
+        double windSpeedMax,
+        Double waveHeightMax,
+        Double wavePeriodMax,
+        boolean rainLikely,
+        String uvRiskLabel,
+        String outdoorActivityLabel,
+        String fishingConditionLabel,
+        String surfConditionLabel
 ) {
 
     public static DailyForecastEntry from(DailyForecast forecast) {
@@ -24,7 +32,15 @@ public record DailyForecastEntry(
                 forecast.sunrise(),
                 forecast.sunset(),
                 forecast.uvIndexMax(),
-                forecast.precipitationProbabilityMax()
+                forecast.precipitationProbabilityMax(),
+                forecast.windSpeedMax(),
+                forecast.waveHeightMax(),
+                forecast.wavePeriodMax(),
+                forecast.rainLikely(),
+                forecast.uvRiskLabel(),
+                forecast.outdoorActivityLabel(),
+                forecast.fishingConditionLabel(),
+                forecast.surfConditionLabel()
         );
     }
 }

@@ -35,7 +35,8 @@ public record ForecastResponse(CurrentWeather current, Hourly hourly, Daily dail
             @JsonProperty("sunrise") List<String> sunrise,
             @JsonProperty("sunset") List<String> sunset,
             @JsonProperty("uv_index_max") List<Double> uvIndexMax,
-            @JsonProperty("precipitation_probability_max") List<Integer> precipitationProbabilityMax
+            @JsonProperty("precipitation_probability_max") List<Integer> precipitationProbabilityMax,
+            @JsonProperty("wind_speed_10m_max") List<Double> windSpeedMax
     ) {
     }
 }

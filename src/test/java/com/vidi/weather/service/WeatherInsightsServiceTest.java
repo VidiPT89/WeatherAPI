@@ -47,7 +47,8 @@ class WeatherInsightsServiceTest {
         WeatherData weather = new WeatherData(
                 "Cascais", "Portugal", 21.0, 20.5, 60, 10.0, "Clear sky", Units.METRIC, "open-meteo", Instant.now());
         DailyForecast today = new DailyForecast(
-                LocalDate.now(), 24.0, 16.0, "Clear sky", LocalDateTime.now(), LocalDateTime.now(), 4.0, 10);
+                LocalDate.now(), 24.0, 16.0, "Clear sky", LocalDateTime.now(), LocalDateTime.now(), 4.0, 10,
+                12.0, 0.4, 6.0, false, "Low", "Great", "Good", "Good");
         ForecastData forecast = new ForecastData("Cascais", "Portugal", Units.METRIC, "open-meteo", List.of(), List.of(today));
         MarineData marine = new MarineData("Cascais", "Portugal", Units.METRIC, "open-meteo", 17.0, 0.4, 270.0, 6.0, List.of());
 
@@ -73,7 +74,8 @@ class WeatherInsightsServiceTest {
         WeatherData weather = new WeatherData(
                 "Madrid", "Spain", 18.0, 17.0, 50, 8.0, "Clear sky", Units.METRIC, "open-meteo", Instant.now());
         DailyForecast today = new DailyForecast(
-                LocalDate.now(), 22.0, 12.0, "Clear sky", LocalDateTime.now(), LocalDateTime.now(), 2.0, 5);
+                LocalDate.now(), 22.0, 12.0, "Clear sky", LocalDateTime.now(), LocalDateTime.now(), 2.0, 5,
+                10.0, null, null, false, "Low", "Great", null, null);
         ForecastData forecast = new ForecastData("Madrid", "Spain", Units.METRIC, "open-meteo", List.of(), List.of(today));
         MarineData marine = new MarineData("Madrid", "Spain", Units.METRIC, "open-meteo", null, null, null, null, List.of());
 

@@ -243,6 +243,110 @@ class OpenMeteoProviderTest {
     }
 
     @Test
+    void enrichesDailyForecast_withWindAndMarineDerivedLabels_forCoastalCity() {
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
+                """);
+        stubForecastSeries("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00"],
+                    "temperature_2m": [12.5],
+                    "weather_code": [1],
+                    "precipitation_probability": [10]
+                  },
+                  "daily": {
+                    "time": ["2024-01-01", "2024-01-02"],
+                    "temperature_2m_max": [15.0, 22.0],
+                    "temperature_2m_min": [8.1, 14.0],
+                    "weather_code": [1, 61],
+                    "sunrise": ["2024-01-01T07:45", "2024-01-02T07:45"],
+                    "sunset": ["2024-01-01T17:30", "2024-01-02T17:31"],
+                    "uv_index_max": [3.5, 7.0],
+                    "precipitation_probability_max": [20, 70],
+                    "wind_speed_10m_max": [10.0, 12.0]
+                  }
+                }
+                """);
+        stubMarine("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00"],
+                    "wave_height": [0.5],
+                    "wave_direction": [270.0],
+                    "wave_period": [9.0],
+                    "sea_surface_temperature": [16.8],
+                    "sea_level_height_msl": [0.1]
+                  },
+                  "daily": {
+                    "time": ["2024-01-01", "2024-01-02"],
+                    "wave_height_max": [0.5, 3.5],
+                    "wave_period_max": [9.0, 5.0]
+                  }
+                }
+                """);
+
+        ForecastData result = provider.fetchForecast("Lisboa", Units.METRIC);
+
+        var calmDay = result.daily().get(0);
+        assertThat(calmDay.windSpeedMax()).isEqualTo(10.0);
+        assertThat(calmDay.waveHeightMax()).isEqualTo(0.5);
+        assertThat(calmDay.wavePeriodMax()).isEqualTo(9.0);
+        assertThat(calmDay.rainLikely()).isFalse();
+        assertThat(calmDay.uvRiskLabel()).isEqualTo("Moderate");
+        assertThat(calmDay.fishingConditionLabel()).isEqualTo("Good");
+        assertThat(calmDay.surfConditionLabel()).isEqualTo("Good");
+
+        var stormyDay = result.daily().get(1);
+        assertThat(stormyDay.windSpeedMax()).isEqualTo(12.0);
+        assertThat(stormyDay.waveHeightMax()).isEqualTo(3.5);
+        assertThat(stormyDay.wavePeriodMax()).isEqualTo(5.0);
+        assertThat(stormyDay.rainLikely()).isTrue();
+        assertThat(stormyDay.uvRiskLabel()).isEqualTo("High");
+        assertThat(stormyDay.surfConditionLabel()).isEqualTo("Poor");
+    }
+
+    @Test
+    void keepsCoreForecastFields_whenMarineEnrichmentFails() {
+        stubGeocoding("Lisboa", """
+                {"results": [{"name": "Lisbon", "country": "Portugal", "latitude": 38.7167, "longitude": -9.1333, "population": 517802}]}
+                """);
+        stubForecastSeries("""
+                {
+                  "hourly": {
+                    "time": ["2024-01-01T00:00"],
+                    "temperature_2m": [12.5],
+                    "weather_code": [1],
+                    "precipitation_probability": [10]
+                  },
+                  "daily": {
+                    "time": ["2024-01-01"],
+                    "temperature_2m_max": [15.0],
+                    "temperature_2m_min": [8.1],
+                    "weather_code": [1],
+                    "sunrise": ["2024-01-01T07:45"],
+                    "sunset": ["2024-01-01T17:30"],
+                    "uv_index_max": [3.5],
+                    "precipitation_probability_max": [20],
+                    "wind_speed_10m_max": [10.0]
+                  }
+                }
+                """);
+        wireMock.stubFor(get(urlPathEqualTo("/v1/marine"))
+                .willReturn(aResponse().withStatus(500)));
+
+        ForecastData result = provider.fetchForecast("Lisboa", Units.METRIC);
+
+        var day = result.daily().get(0);
+        assertThat(day.temperatureMax()).isEqualTo(15.0);
+        assertThat(day.windSpeedMax()).isEqualTo(10.0);
+        assertThat(day.waveHeightMax()).isNull();
+        assertThat(day.wavePeriodMax()).isNull();
+        assertThat(day.fishingConditionLabel()).isNull();
+        assertThat(day.surfConditionLabel()).isNull();
+    }
+
+    @Test
     void returnsZeroDefaults_whenDailyOrHourlyValuesAreNull() {
         // Open-Meteo's model doesn't reliably cover its full range for every
         // derived metric — uv_index_max (and similar) can come back null for

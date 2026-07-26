@@ -195,7 +195,7 @@ class WeatherControllerTest {
                         java.time.LocalDate.parse("2024-01-01"), 15.0, 8.1, "Mainly clear",
                         java.time.LocalDateTime.parse("2024-01-01T07:45"),
                         java.time.LocalDateTime.parse("2024-01-01T17:30"),
-                        3.5, 20)));
+                        3.5, 20, 12.0, 0.6, 7.0, false, "Moderate", "Good", "Fair", "Fair")));
         when(forecastService.getForecast(eq("Lisboa"), eq(Units.METRIC)))
                 .thenReturn(new ForecastResult(forecastData, false));
 

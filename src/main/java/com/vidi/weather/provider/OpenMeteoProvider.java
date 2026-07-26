@@ -14,12 +14,17 @@ import com.vidi.weather.provider.openmeteo.ForecastResponse;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse;
 import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import com.vidi.weather.provider.openmeteo.MarineResponse;
+import com.vidi.weather.util.FishingConditionScorer;
+import com.vidi.weather.util.OutdoorActivityScorer;
+import com.vidi.weather.util.SurfConditionScorer;
 import com.vidi.weather.util.TidePeakDetector;
+import com.vidi.weather.util.UvRiskLabeler;
 import com.vidi.weather.util.WeatherCodeMapper;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -35,6 +40,8 @@ public class OpenMeteoProvider implements WeatherProvider {
     private static final String PROVIDER_NAME = "open-meteo";
     private static final int FORECAST_HOURLY_HOURS = 48;
     private static final int FORECAST_DAILY_DAYS = 16;
+    // Simple threshold for the "rain likely" flag surfaced per forecast day.
+    private static final int RAIN_LIKELY_THRESHOLD_PERCENT = 50;
     // Open-Meteo indexes cities under their English name, so a local-spelling query needs this fallback locale to match (app is PT/EN).
     private static final String DISAMBIGUATION_LANGUAGE = "pt";
 
@@ -68,6 +75,9 @@ public class OpenMeteoProvider implements WeatherProvider {
     public ForecastData fetchForecast(String city, Units units) {
         GeocodingResult location = resolveLocation(city);
         ForecastResponse response = fetchForecastSeries(location, units);
+        // Best-effort: marine enrichment (wave/surf/fishing per day) must never break the
+        // core forecast for an inland city or a flaky marine endpoint.
+        MarineResponse marineResponse = fetchMarineSeriesSafely(location, units);
 
         // Open-Meteo's model doesn't always reach the full requested range for a
         // given location — the last hour(s)/day(s) can come back with every field
@@ -89,18 +99,64 @@ public class OpenMeteoProvider implements WeatherProvider {
                 .filter(i -> dailyResponse.temperatureMax().get(i) != null
                         && dailyResponse.temperatureMin().get(i) != null
                         && dailyResponse.weatherCode().get(i) != null)
-                .mapToObj(i -> new DailyForecast(
-                        LocalDate.parse(dailyResponse.time().get(i)),
-                        dailyResponse.temperatureMax().get(i),
-                        dailyResponse.temperatureMin().get(i),
-                        WeatherCodeMapper.describe(dailyResponse.weatherCode().get(i)),
-                        LocalDateTime.parse(dailyResponse.sunrise().get(i)),
-                        LocalDateTime.parse(dailyResponse.sunset().get(i)),
-                        doubleOrZero(dailyResponse.uvIndexMax(), i),
-                        intOrZero(dailyResponse.precipitationProbabilityMax(), i)))
+                .mapToObj(i -> buildDailyForecast(dailyResponse, marineResponse, i, units))
                 .toList();
 
         return new ForecastData(location.name(), location.country(), units, PROVIDER_NAME, hourly, daily);
+    }
+
+    private DailyForecast buildDailyForecast(ForecastResponse.Daily dailyResponse, MarineResponse marineResponse, int index, Units units) {
+        double temperatureMax = dailyResponse.temperatureMax().get(index);
+        double temperatureMin = dailyResponse.temperatureMin().get(index);
+        double uvIndexMax = doubleOrZero(dailyResponse.uvIndexMax(), index);
+        int precipitationProbabilityMax = intOrZero(dailyResponse.precipitationProbabilityMax(), index);
+        double windSpeedMax = doubleOrZero(dailyResponse.windSpeedMax(), index);
+
+        Double waveHeightMax = marineDailyValue(marineResponse, index, MarineResponse.Daily::waveHeightMax);
+        Double wavePeriodMax = marineDailyValue(marineResponse, index, MarineResponse.Daily::wavePeriodMax);
+
+        boolean rainLikely = precipitationProbabilityMax >= RAIN_LIKELY_THRESHOLD_PERCENT;
+        String uvRiskLabel = UvRiskLabeler.label(uvIndexMax);
+        int activityScore = OutdoorActivityScorer.score(
+                temperatureMax, windSpeedMax, precipitationProbabilityMax, uvIndexMax, units);
+        String outdoorActivityLabel = OutdoorActivityScorer.label(activityScore);
+        String fishingConditionLabel = FishingConditionScorer.label(waveHeightMax, windSpeedMax, units);
+        String surfConditionLabel = SurfConditionScorer.label(waveHeightMax, wavePeriodMax);
+
+        return new DailyForecast(
+                LocalDate.parse(dailyResponse.time().get(index)),
+                temperatureMax,
+                temperatureMin,
+                WeatherCodeMapper.describe(dailyResponse.weatherCode().get(index)),
+                LocalDateTime.parse(dailyResponse.sunrise().get(index)),
+                LocalDateTime.parse(dailyResponse.sunset().get(index)),
+                uvIndexMax,
+                precipitationProbabilityMax,
+                windSpeedMax,
+                waveHeightMax,
+                wavePeriodMax,
+                rainLikely,
+                uvRiskLabel,
+                outdoorActivityLabel,
+                fishingConditionLabel,
+                surfConditionLabel);
+    }
+
+    private MarineResponse fetchMarineSeriesSafely(GeocodingResult location, Units units) {
+        try {
+            return fetchMarineSeries(location, units);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private static Double marineDailyValue(
+            MarineResponse marineResponse, int index, Function<MarineResponse.Daily, List<Double>> extractor) {
+        if (marineResponse == null || marineResponse.daily() == null) {
+            return null;
+        }
+        List<Double> values = extractor.apply(marineResponse.daily());
+        return (values == null || index >= values.size()) ? null : values.get(index);
     }
 
     public MarineData fetchMarineConditions(String city, Units units) {
@@ -206,6 +262,7 @@ public class OpenMeteoProvider implements WeatherProvider {
 
     private ForecastResponse fetchForecastSeries(GeocodingResult location, Units units) {
         String temperatureUnit = units == Units.IMPERIAL ? "fahrenheit" : "celsius";
+        String windSpeedUnit = units == Units.IMPERIAL ? "mph" : "kmh";
 
         String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().forecastUrl())
                 .queryParam("latitude", location.latitude())
@@ -213,8 +270,9 @@ public class OpenMeteoProvider implements WeatherProvider {
                 .queryParam("hourly", "temperature_2m,weather_code,precipitation_probability")
                 .queryParam("daily",
                         "temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,"
-                                + "uv_index_max,precipitation_probability_max")
+                                + "uv_index_max,precipitation_probability_max,wind_speed_10m_max")
                 .queryParam("temperature_unit", temperatureUnit)
+                .queryParam("wind_speed_unit", windSpeedUnit)
                 .queryParam("timezone", "auto")
                 .queryParam("forecast_hours", FORECAST_HOURLY_HOURS)
                 .queryParam("forecast_days", FORECAST_DAILY_DAYS)
@@ -229,15 +287,27 @@ public class OpenMeteoProvider implements WeatherProvider {
     }
 
     private static double doubleOrZero(List<Double> values, int index) {
+        if (values == null || index >= values.size()) {
+            return 0.0;
+        }
         Double value = values.get(index);
         return value != null ? value : 0.0;
     }
 
     private static int intOrZero(List<Integer> values, int index) {
+        if (values == null || index >= values.size()) {
+            return 0;
+        }
         Integer value = values.get(index);
         return value != null ? value : 0;
     }
 
+    /**
+     * Shared by the "today" marine card ({@link #fetchMarineConditions}) and the per-day
+     * fishing/surf labels in {@link #fetchForecast} -- one request carries both the hourly
+     * block (today's readings) and the daily block (max wave height/period per day), so
+     * enriching the forecast doesn't cost an extra Open-Meteo call.
+     */
     private MarineResponse fetchMarineSeries(GeocodingResult location, Units units) {
         String temperatureUnit = units == Units.IMPERIAL ? "fahrenheit" : "celsius";
 
@@ -245,9 +315,10 @@ public class OpenMeteoProvider implements WeatherProvider {
                 .queryParam("latitude", location.latitude())
                 .queryParam("longitude", location.longitude())
                 .queryParam("hourly", "wave_height,wave_direction,wave_period,sea_surface_temperature,sea_level_height_msl")
+                .queryParam("daily", "wave_height_max,wave_period_max")
                 .queryParam("temperature_unit", temperatureUnit)
                 .queryParam("timezone", "auto")
-                .queryParam("forecast_days", 1)
+                .queryParam("forecast_days", FORECAST_DAILY_DAYS)
                 .toUriString();
 
         MarineResponse response = execute(() -> restTemplate.getForObject(uri, MarineResponse.class));
