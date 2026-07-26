@@ -15,7 +15,9 @@ import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
+import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -39,7 +41,8 @@ class OpenWeatherMapProviderTest {
     private OpenWeatherMapProvider buildProvider(int connectTimeoutMs, int readTimeoutMs) {
         WeatherApiProperties properties = new WeatherApiProperties(
                 new WeatherApiProperties.OpenMeteo("unused", "unused", "unused"),
-                new WeatherApiProperties.OpenWeatherMap(wireMock.baseUrl() + "/data/2.5/weather", "test-key"),
+                new WeatherApiProperties.OpenWeatherMap(
+                        wireMock.baseUrl() + "/data/2.5/weather", wireMock.baseUrl() + "/geo/1.0/reverse", "test-key"),
                 new WeatherApiProperties.Cache(15, 500),
                 new WeatherApiProperties.Http(connectTimeoutMs, readTimeoutMs));
 
@@ -138,5 +141,51 @@ class OpenWeatherMapProviderTest {
                 .willReturn(aResponse().withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody(responseBody)));
+    }
+
+    @Test
+    void reverseGeocode_returnsResolvedCity() {
+        wireMock.stubFor(get(urlPathEqualTo("/geo/1.0/reverse"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                [{"name": "Lisbon", "country": "PT", "lat": 38.7167, "lon": -9.1333}]
+                                """)));
+
+        List<GeocodingResult> results = provider.reverseGeocode(38.7167, -9.1333);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).name()).isEqualTo("Lisbon");
+        assertThat(results.get(0).country()).isEqualTo("PT");
+    }
+
+    @Test
+    void reverseGeocode_returnsEmptyList_whenNoMatch() {
+        wireMock.stubFor(get(urlPathEqualTo("/geo/1.0/reverse"))
+                .willReturn(aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("[]")));
+
+        List<GeocodingResult> results = provider.reverseGeocode(0.0, 0.0);
+
+        assertThat(results).isEmpty();
+    }
+
+    @Test
+    void reverseGeocode_throwsProviderQuotaExceeded_whenApiReturns429() {
+        wireMock.stubFor(get(urlPathEqualTo("/geo/1.0/reverse"))
+                .willReturn(aResponse().withStatus(429)));
+
+        assertThatThrownBy(() -> provider.reverseGeocode(38.7167, -9.1333))
+                .isInstanceOf(ProviderQuotaExceededException.class);
+    }
+
+    @Test
+    void reverseGeocode_throwsProviderUnavailable_whenApiReturnsServerError() {
+        wireMock.stubFor(get(urlPathEqualTo("/geo/1.0/reverse"))
+                .willReturn(aResponse().withStatus(500)));
+
+        assertThatThrownBy(() -> provider.reverseGeocode(38.7167, -9.1333))
+                .isInstanceOf(ProviderUnavailableException.class);
     }
 }

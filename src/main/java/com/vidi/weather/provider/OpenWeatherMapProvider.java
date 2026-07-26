@@ -6,9 +6,12 @@ import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
+import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
+import com.vidi.weather.provider.openweathermap.OpenWeatherMapReverseGeocodingEntry;
 import com.vidi.weather.provider.openweathermap.OpenWeatherMapResponse;
 import com.vidi.weather.util.UnitConverter;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -66,6 +69,36 @@ public class OpenWeatherMapProvider implements WeatherProvider {
                 PROVIDER_NAME,
                 Instant.now()
         );
+    }
+
+    /**
+     * Resolves GPS coordinates to a city name via OpenWeatherMap's reverse-geocoding API --
+     * Open-Meteo's free geocoding endpoint only supports forward (name -> coordinates) search.
+     */
+    public List<GeocodingResult> reverseGeocode(double latitude, double longitude) {
+        String uri = UriComponentsBuilder.fromHttpUrl(properties.openWeatherMap().reverseGeocodingUrl())
+                .queryParam("lat", latitude)
+                .queryParam("lon", longitude)
+                .queryParam("limit", 1)
+                .queryParam("appid", properties.openWeatherMap().apiKey())
+                .toUriString();
+
+        OpenWeatherMapReverseGeocodingEntry[] response;
+        try {
+            response = restTemplate.getForObject(uri, OpenWeatherMapReverseGeocodingEntry[].class);
+        } catch (HttpClientErrorException.TooManyRequests ex) {
+            throw new ProviderQuotaExceededException(PROVIDER_NAME);
+        } catch (RestClientException ex) {
+            throw new ProviderUnavailableException(PROVIDER_NAME, ex);
+        }
+
+        if (response == null) {
+            return List.of();
+        }
+
+        return Arrays.stream(response)
+                .map(entry -> new GeocodingResult(entry.name(), entry.country(), entry.lat(), entry.lon()))
+                .toList();
     }
 
     @Override

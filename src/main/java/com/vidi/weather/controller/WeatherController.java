@@ -7,6 +7,7 @@ import com.vidi.weather.dto.MarineConditionsResponse;
 import com.vidi.weather.dto.SearchHistoryResponse;
 import com.vidi.weather.dto.WeatherInsightsResponse;
 import com.vidi.weather.dto.WeatherResponse;
+import com.vidi.weather.exception.CityNotFoundException;
 import com.vidi.weather.model.ForecastResult;
 import com.vidi.weather.model.MarineResult;
 import com.vidi.weather.model.Units;
@@ -15,6 +16,7 @@ import com.vidi.weather.model.WeatherResult;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.FavoriteService;
 import com.vidi.weather.service.ForecastService;
+import com.vidi.weather.service.GeocodingService;
 import com.vidi.weather.service.MarineService;
 import com.vidi.weather.service.SearchHistoryService;
 import com.vidi.weather.service.WeatherAggregatorService;
@@ -45,6 +47,7 @@ public class WeatherController {
     private final WeatherInsightsService weatherInsightsService;
     private final SearchHistoryService searchHistoryService;
     private final FavoriteService favoriteService;
+    private final GeocodingService geocodingService;
 
     public WeatherController(
             WeatherAggregatorService weatherAggregatorService,
@@ -52,13 +55,15 @@ public class WeatherController {
             MarineService marineService,
             WeatherInsightsService weatherInsightsService,
             SearchHistoryService searchHistoryService,
-            FavoriteService favoriteService) {
+            FavoriteService favoriteService,
+            GeocodingService geocodingService) {
         this.weatherAggregatorService = weatherAggregatorService;
         this.forecastService = forecastService;
         this.marineService = marineService;
         this.weatherInsightsService = weatherInsightsService;
         this.searchHistoryService = searchHistoryService;
         this.favoriteService = favoriteService;
+        this.geocodingService = geocodingService;
     }
 
     @GetMapping
@@ -128,6 +133,33 @@ public class WeatherController {
         Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
         WeatherInsightsData data = weatherInsightsService.getInsights(city, parsedUnits);
         return ResponseEntity.ok(WeatherInsightsResponse.from(data));
+    }
+
+    @GetMapping("/nearby")
+    @Operation(summary = "Get current weather for the caller's GPS coordinates, reverse-geocoded to a city")
+    public ResponseEntity<WeatherResponse> getCurrentWeatherNearby(
+            @RequestParam double lat,
+            @RequestParam double lon,
+            @RequestParam(required = false) String units,
+            @AuthenticationPrincipal AuthenticatedUser principal) {
+
+        if (lat < -90 || lat > 90) {
+            throw new IllegalArgumentException("Query parameter 'lat' must be between -90 and 90");
+        }
+        if (lon < -180 || lon > 180) {
+            throw new IllegalArgumentException("Query parameter 'lon' must be between -180 and 180");
+        }
+
+        var user = principal.getUser();
+        Units parsedUnits = units != null ? Units.fromString(units) : user.getPreferredUnits();
+
+        String city = geocodingService.reverseGeocode(lat, lon)
+                .map(result -> result.name())
+                .orElseThrow(() -> new CityNotFoundException("coordinates %.4f,%.4f".formatted(lat, lon)));
+
+        WeatherResult result = weatherAggregatorService.getCurrentWeather(city, parsedUnits);
+        searchHistoryService.record(user, city, parsedUnits);
+        return ResponseEntity.ok(WeatherResponse.from(result));
     }
 
     @GetMapping("/history")

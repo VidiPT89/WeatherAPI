@@ -34,6 +34,11 @@ public class CacheConfig {
         return buildCache(properties);
     }
 
+    @Bean
+    public Cache<String, GeocodingResult> reverseGeocodingCache(WeatherApiProperties properties) {
+        return buildCache(properties);
+    }
+
     private <T> Cache<String, T> buildCache(WeatherApiProperties properties) {
         return Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(properties.cache().ttlMinutes()))

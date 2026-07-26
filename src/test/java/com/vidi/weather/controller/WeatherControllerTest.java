@@ -24,9 +24,11 @@ import com.vidi.weather.model.ForecastResult;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.model.WeatherResult;
+import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.FavoriteService;
 import com.vidi.weather.service.ForecastService;
+import com.vidi.weather.service.GeocodingService;
 import com.vidi.weather.service.MarineService;
 import com.vidi.weather.service.SearchHistoryService;
 import com.vidi.weather.service.WeatherAggregatorService;
@@ -65,6 +67,9 @@ class WeatherControllerTest {
 
     @MockitoBean
     private FavoriteService favoriteService;
+
+    @MockitoBean
+    private GeocodingService geocodingService;
 
     private final User principalUser = new User("test@example.com", "hash", Units.METRIC);
     private final AuthenticatedUser authenticatedUser = new AuthenticatedUser(principalUser);
@@ -137,6 +142,47 @@ class WeatherControllerTest {
 
         mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa").with(user(authenticatedUser)))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void returns200WithNearbyWeather_whenCoordinatesResolveToACity() throws Exception {
+        when(geocodingService.reverseGeocode(38.7167, -9.1333))
+                .thenReturn(java.util.Optional.of(new GeocodingResult("Lisboa", "Portugal", 38.7167, -9.1333)));
+        when(weatherAggregatorService.getCurrentWeather(eq("Lisboa"), eq(Units.METRIC)))
+                .thenReturn(new WeatherResult(sampleData, false));
+
+        mockMvc.perform(get("/api/v1/weather/nearby")
+                        .param("lat", "38.7167").param("lon", "-9.1333")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Lisboa"));
+    }
+
+    @Test
+    void returns404_whenCoordinatesDoNotResolveToACity() throws Exception {
+        when(geocodingService.reverseGeocode(org.mockito.ArgumentMatchers.anyDouble(), org.mockito.ArgumentMatchers.anyDouble()))
+                .thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(get("/api/v1/weather/nearby")
+                        .param("lat", "0").param("lon", "0")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void returns400_whenLatIsOutOfRange() throws Exception {
+        mockMvc.perform(get("/api/v1/weather/nearby")
+                        .param("lat", "91").param("lon", "0")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returns400_whenLonIsOutOfRange() throws Exception {
+        mockMvc.perform(get("/api/v1/weather/nearby")
+                        .param("lat", "0").param("lon", "181")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

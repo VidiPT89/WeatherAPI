@@ -12,7 +12,7 @@ public record WeatherApiProperties(
     public record OpenMeteo(String geocodingUrl, String forecastUrl, String marineUrl) {
     }
 
-    public record OpenWeatherMap(String baseUrl, String apiKey) {
+    public record OpenWeatherMap(String baseUrl, String reverseGeocodingUrl, String apiKey) {
     }
 
     public record Cache(int ttlMinutes, long maxSize) {
