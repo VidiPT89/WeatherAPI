@@ -1,6 +1,7 @@
 package com.vidi.weather.controller;
 
 import com.vidi.weather.dto.UserPreferences;
+import com.vidi.weather.dto.UserResponse;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.security.AuthenticatedUser;
@@ -25,6 +26,12 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Get the authenticated user's profile, including role")
+    public ResponseEntity<UserResponse> getMe(@AuthenticationPrincipal AuthenticatedUser principal) {
+        return ResponseEntity.ok(UserResponse.from(principal.getUser()));
     }
 
     @GetMapping("/preferences")

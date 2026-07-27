@@ -212,6 +212,86 @@ class AuthAndSecurityIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void adminUsersEndpointRejectsRegularUsers() throws Exception {
+        String token = registerAndGetToken(uniqueEmail());
+
+        mockMvc.perform(get("/api/v1/admin/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminUsersEndpointListsRegisteredUsers_forAdmin() throws Exception {
+        String email = uniqueEmail();
+        String token = registerAndGetToken(email);
+        promoteToAdmin(email);
+
+        mockMvc.perform(get("/api/v1/admin/users").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.email == '%s')]".formatted(email)).exists());
+    }
+
+    @Test
+    void adminCannotDeleteTheirOwnAccount() throws Exception {
+        String email = uniqueEmail();
+        String token = registerAndGetToken(email);
+        promoteToAdmin(email);
+        long ownId = fetchOwnId(token);
+
+        mockMvc.perform(delete("/api/v1/admin/users/" + ownId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCanDeleteAnotherUsersAccount() throws Exception {
+        String adminEmail = uniqueEmail();
+        String adminToken = registerAndGetToken(adminEmail);
+        promoteToAdmin(adminEmail);
+
+        String targetEmail = uniqueEmail();
+        registerAndGetToken(targetEmail);
+        long targetId = userRepository.findByEmail(targetEmail).orElseThrow().getId();
+
+        mockMvc.perform(delete("/api/v1/admin/users/" + targetId).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNoContent());
+
+        assertThat(userRepository.findByEmail(targetEmail)).isEmpty();
+    }
+
+    @Test
+    void deletingANonExistentUserReturnsNotFound() throws Exception {
+        String email = uniqueEmail();
+        String token = registerAndGetToken(email);
+        promoteToAdmin(email);
+
+        mockMvc.perform(delete("/api/v1/admin/users/999999999").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("USER_NOT_FOUND"));
+    }
+
+    @Test
+    void meEndpointReflectsPromotionToAdmin() throws Exception {
+        String email = uniqueEmail();
+        String token = registerAndGetToken(email);
+
+        mockMvc.perform(get("/api/v1/user/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("user"));
+
+        promoteToAdmin(email);
+
+        mockMvc.perform(get("/api/v1/user/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("admin"));
+    }
+
+    private long fetchOwnId(String token) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/user/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    }
+
     /**
      * Runs through the real {@code FavoriteService}/{@code FavoriteRepository} (only
      * {@code weatherAggregatorService} is mocked in this class) with no enclosing test
