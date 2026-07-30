@@ -81,11 +81,15 @@ jwt:
   refresh-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:30}
 
 rate-limit:
-  requests-per-minute: 60
+  requests-per-minute: ${RATE_LIMIT_REQUESTS_PER_MINUTE:60}
   # Stricter, IP-keyed limit for /api/v1/auth/** (login/register/refresh/logout have no
   # authenticated principal to key a bucket on, and are the endpoints brute-force/credential
   # stuffing attacks actually target).
-  auth-requests-per-minute: 10
+  auth-requests-per-minute: ${RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE:10}
+  # Any other request that reaches the filter without an authenticated principal -- i.e. a
+  # protected endpoint hit with no token or a garbage/expired one -- falls back to this IP-keyed
+  # limit instead of skipping rate limiting altogether until Spring Security rejects it with 401.
+  unauthenticated-requests-per-minute: ${RATE_LIMIT_UNAUTHENTICATED_REQUESTS_PER_MINUTE:20}
 
 springdoc:
   swagger-ui:

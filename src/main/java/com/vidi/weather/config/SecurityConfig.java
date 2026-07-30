@@ -49,7 +49,11 @@ public class SecurityConfig {
 
     @Bean
     public RateLimitFilter rateLimitFilter(RateLimitProperties properties, ObjectMapper objectMapper) {
-        return new RateLimitFilter(properties.requestsPerMinute(), properties.authRequestsPerMinute(), objectMapper);
+        return new RateLimitFilter(
+                properties.requestsPerMinute(),
+                properties.authRequestsPerMinute(),
+                properties.unauthenticatedRequestsPerMinute(),
+                objectMapper);
     }
 
     @Bean
