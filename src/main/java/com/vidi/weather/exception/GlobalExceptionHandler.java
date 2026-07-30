@@ -77,6 +77,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request, ErrorCode.FAVORITE_NOT_FOUND);
     }
 
+    @ExceptionHandler(SearchHistoryEntryNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleSearchHistoryEntryNotFound(
+            SearchHistoryEntryNotFoundException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request, ErrorCode.SEARCH_HISTORY_ENTRY_NOT_FOUND);
+    }
+
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage(), request, ErrorCode.USER_NOT_FOUND);

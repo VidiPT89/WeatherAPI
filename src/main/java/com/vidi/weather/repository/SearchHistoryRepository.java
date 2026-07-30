@@ -11,6 +11,10 @@ public interface SearchHistoryRepository extends JpaRepository<SearchHistoryEntr
 
     List<SearchHistoryEntry> findByUserOrderBySearchedAtDesc(User user);
 
+    long deleteByUserAndId(User user, Long id);
+
+    long deleteByUser(User user);
+
     @Query("""
             SELECT s.city AS city, COUNT(s) AS searchCount
             FROM SearchHistoryEntry s

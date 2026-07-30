@@ -19,6 +19,7 @@ import com.vidi.weather.exception.FavoriteAlreadyExistsException;
 import com.vidi.weather.exception.FavoriteNotFoundException;
 import com.vidi.weather.exception.ProviderQuotaExceededException;
 import com.vidi.weather.exception.ProviderUnavailableException;
+import com.vidi.weather.exception.SearchHistoryEntryNotFoundException;
 import com.vidi.weather.model.ForecastData;
 import com.vidi.weather.model.ForecastResult;
 import com.vidi.weather.model.Units;
@@ -311,6 +312,37 @@ class WeatherControllerTest {
 
         mockMvc.perform(get("/api/v1/weather/history").with(user(authenticatedUser)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void returns204_whenHistoryEntryIsDeleted() throws Exception {
+        mockMvc.perform(delete("/api/v1/weather/history/{id}", 1L)
+                        .with(user(authenticatedUser))
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+
+        org.mockito.Mockito.verify(searchHistoryService).delete(principalUser, 1L);
+    }
+
+    @Test
+    void returns404_whenDeletingAHistoryEntryThatDoesNotBelongToTheUser() throws Exception {
+        org.mockito.Mockito.doThrow(new SearchHistoryEntryNotFoundException(1L))
+                .when(searchHistoryService).delete(principalUser, 1L);
+
+        mockMvc.perform(delete("/api/v1/weather/history/{id}", 1L)
+                        .with(user(authenticatedUser))
+                        .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void returns204_whenHistoryIsCleared() throws Exception {
+        mockMvc.perform(delete("/api/v1/weather/history")
+                        .with(user(authenticatedUser))
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+
+        org.mockito.Mockito.verify(searchHistoryService).deleteAll(principalUser);
     }
 
     @Test

@@ -30,6 +30,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -166,6 +167,21 @@ public class WeatherController {
     @Operation(summary = "List the authenticated user's past searches")
     public ResponseEntity<List<SearchHistoryResponse>> getHistory(@AuthenticationPrincipal AuthenticatedUser principal) {
         return ResponseEntity.ok(searchHistoryService.listForUser(principal.getUser()));
+    }
+
+    @DeleteMapping("/history/{id}")
+    @Operation(summary = "Remove a single entry from the authenticated user's search history")
+    public ResponseEntity<Void> deleteHistoryEntry(
+            @PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser principal) {
+        searchHistoryService.delete(principal.getUser(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/history")
+    @Operation(summary = "Clear the authenticated user's entire search history")
+    public ResponseEntity<Void> clearHistory(@AuthenticationPrincipal AuthenticatedUser principal) {
+        searchHistoryService.deleteAll(principal.getUser());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/favorites")
