@@ -93,6 +93,8 @@ GET  /api/v1/weather/forecast?city=&units= — hourly + daily forecast (Open-Met
 GET  /api/v1/weather/marine?city=&units=   — sea conditions (water temp, wave height/direction/period) for a coastal city
 GET  /api/v1/weather/insights?city=&units= — derived insights: moon phase, UV risk, outdoor-activity score, fishing conditions
 GET  /api/v1/weather/history               — search history
+DELETE /api/v1/weather/history/{id}        — remove a single search history entry
+DELETE /api/v1/weather/history             — clear the caller's entire search history
 GET  /api/v1/weather/favorites             — list favorites
 POST /api/v1/weather/favorites             — add a favorite
 DELETE /api/v1/weather/favorites?city=     — remove a favorite

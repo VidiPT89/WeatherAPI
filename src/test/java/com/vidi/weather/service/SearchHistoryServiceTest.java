@@ -1,12 +1,14 @@
 package com.vidi.weather.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.vidi.weather.entity.SearchHistoryEntry;
 import com.vidi.weather.entity.User;
+import com.vidi.weather.exception.SearchHistoryEntryNotFoundException;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.repository.SearchHistoryRepository;
 import java.util.List;
@@ -47,5 +49,29 @@ class SearchHistoryServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).city()).isEqualTo("Lisboa");
         assertThat(result.get(0).units()).isEqualTo("metric");
+    }
+
+    @Test
+    void deletesEntryWhenItBelongsToTheUser() {
+        when(searchHistoryRepository.deleteByUserAndId(user, 1L)).thenReturn(1L);
+
+        searchHistoryService.delete(user, 1L);
+
+        verify(searchHistoryRepository).deleteByUserAndId(user, 1L);
+    }
+
+    @Test
+    void throwsWhenDeletingAnEntryThatDoesNotBelongToTheUser() {
+        when(searchHistoryRepository.deleteByUserAndId(user, 1L)).thenReturn(0L);
+
+        assertThatThrownBy(() -> searchHistoryService.delete(user, 1L))
+                .isInstanceOf(SearchHistoryEntryNotFoundException.class);
+    }
+
+    @Test
+    void clearsAllHistoryForTheUser() {
+        searchHistoryService.deleteAll(user);
+
+        verify(searchHistoryRepository).deleteByUser(user);
     }
 }
