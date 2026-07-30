@@ -94,8 +94,10 @@ rate-limit:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${SWAGGER_ENABLED:true}
   api-docs:
     path: /v3/api-docs
+    enabled: ${SWAGGER_ENABLED:true}
 
 logging:
   level:

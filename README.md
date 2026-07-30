@@ -4,7 +4,7 @@
 
 **Clients built on this API:** [Web (Next.js)](https://github.com/VidiPT89/WeatherApp) ([live](https://weather-app-psi-inky-53.vercel.app)) · [iOS (Swift/SwiftUI)](https://github.com/VidiPT89/WeatherApp-iOS) · [Android (Kotlin/Compose)](https://github.com/VidiPT89/WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
 
-**Live API:** [weather-api-production-68ff.up.railway.app](https://weather-api-production-68ff.up.railway.app) ([Swagger UI](https://weather-api-production-68ff.up.railway.app/swagger-ui/index.html))
+**Live API:** [weather-api-production-68ff.up.railway.app](https://weather-api-production-68ff.up.railway.app) (Swagger UI is disabled on this deployment — see *Notes*; run locally to explore it interactively)
 
 Weather API Aggregator queries a primary weather provider (Open-Meteo) and falls back automatically to a secondary one (OpenWeatherMap) if the first is down, each call protected by a Resilience4j circuit breaker and retry with exponential backoff. On top of that sits a full per-user layer — JWT authentication with refresh tokens, search history, favorite cities and unit preferences backed by PostgreSQL — plus an in-memory cache, per-user rate limiting and role-based access (regular users vs. admins) for aggregate stats and user management.
 
@@ -146,7 +146,7 @@ createdb weather_api -O weather_api
 mvn spring-boot:run
 ```
 
-The database connection, JWT secret/expiration, rate limits and the OpenWeatherMap API key are all configurable via environment variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `RATE_LIMIT_REQUESTS_PER_MINUTE`, `RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE`, `RATE_LIMIT_UNAUTHENTICATED_REQUESTS_PER_MINUTE`, `OPENWEATHERMAP_API_KEY`) — the values in `application.yml` are local-development defaults only and must be overridden in any real deployment. `JWT_SECRET` has no default and must always be set; every other variable falls back to a sensible local default if left unset.
+The database connection, JWT secret/expiration, rate limits and the OpenWeatherMap API key are all configurable via environment variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `RATE_LIMIT_REQUESTS_PER_MINUTE`, `RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE`, `RATE_LIMIT_UNAUTHENTICATED_REQUESTS_PER_MINUTE`, `OPENWEATHERMAP_API_KEY`, `SWAGGER_ENABLED`) — the values in `application.yml` are local-development defaults only and must be overridden in any real deployment. `JWT_SECRET` has no default and must always be set; every other variable falls back to a sensible local default if left unset.
 
 Without `OPENWEATHERMAP_API_KEY` set, the second provider fails with `401` on every real call — that's expected, not a bug: the app keeps working normally because fallback always lands on Open-Meteo. To exercise the second provider for real, grab a [free OpenWeatherMap key](https://openweathermap.org/api) and export it as `OPENWEATHERMAP_API_KEY`.
 
@@ -162,6 +162,7 @@ Repository tests and the end-to-end security/fallback tests run against a real P
 
 ## 📝 Notes
 
+- Swagger UI / OpenAPI docs (`/swagger-ui.html`, `/v3/api-docs`) are on by default (`SWAGGER_ENABLED` unset or `true`) but disabled on the live Railway deployment (`SWAGGER_ENABLED=false`) — the routes it documents don't leak anything on their own, but publishing the full endpoint map to anyone unauthenticated isn't worth it on a real deployment; run the app locally to browse it interactively.
 - Open-Meteo's geocoding picks the most relevant result by name; ambiguous city names can return the wrong location (no country/coordinate disambiguation yet).
 - Rate limiting, circuit breaker state and cached data are all in-memory and per instance (Caffeine); none of it is shared across multiple application instances yet.
 - Forecast is Open-Meteo-only — OpenWeatherMap has no forecast call wired up in this codebase, so there's no fallback for `/weather/forecast` (a provider outage there surfaces as `502`, unlike `/weather`, which falls back to the secondary provider).
