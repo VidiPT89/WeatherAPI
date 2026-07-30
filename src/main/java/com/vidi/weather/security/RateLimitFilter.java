@@ -27,18 +27,28 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final Cache<String, Bucket> bucketsByUser;
     private final Cache<String, Bucket> bucketsByIp;
+    private final Cache<String, Bucket> bucketsByUnauthenticatedIp;
     private final int requestsPerMinute;
     private final int authRequestsPerMinute;
+    private final int unauthenticatedRequestsPerMinute;
     private final ObjectMapper objectMapper;
 
-    public RateLimitFilter(int requestsPerMinute, int authRequestsPerMinute, ObjectMapper objectMapper) {
+    public RateLimitFilter(
+            int requestsPerMinute,
+            int authRequestsPerMinute,
+            int unauthenticatedRequestsPerMinute,
+            ObjectMapper objectMapper) {
         this.requestsPerMinute = requestsPerMinute;
         this.authRequestsPerMinute = authRequestsPerMinute;
+        this.unauthenticatedRequestsPerMinute = unauthenticatedRequestsPerMinute;
         this.objectMapper = objectMapper;
         this.bucketsByUser = Caffeine.newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(5))
                 .build();
         this.bucketsByIp = Caffeine.newBuilder()
+                .expireAfterAccess(Duration.ofMinutes(5))
+                .build();
+        this.bucketsByUnauthenticatedIp = Caffeine.newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(5))
                 .build();
     }
@@ -63,7 +73,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        filterChain.doFilter(request, response);
+        // Any other request reaching this point has no authenticated principal -- a missing,
+        // malformed, or expired token on a protected endpoint (JwtAuthenticationFilter leaves the
+        // SecurityContext empty rather than rejecting outright, deferring that to Spring
+        // Security's own 401 further down the chain). Without this branch, that request sails
+        // through with zero rate limiting; key it by IP the same way the auth endpoints are.
+        Bucket bucket = bucketsByUnauthenticatedIp.get(
+                resolveClientIp(request), key -> newBucket(unauthenticatedRequestsPerMinute));
+        consumeOrReject(bucket, request, response, filterChain);
     }
 
     private void consumeOrReject(
