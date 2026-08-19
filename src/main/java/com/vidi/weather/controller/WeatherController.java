@@ -68,7 +68,8 @@ public class WeatherController {
     }
 
     @GetMapping
-    @Operation(summary = "Get current weather for a city")
+    @Operation(summary = "Get current weather for a city (works anonymously; searches are only recorded to "
+            + "history when called with a valid access token)")
     public ResponseEntity<WeatherResponse> getCurrentWeather(
             @RequestParam String city,
             @RequestParam(required = false) String units,
@@ -78,16 +79,17 @@ public class WeatherController {
             throw new IllegalArgumentException("Query parameter 'city' must not be blank");
         }
 
-        var user = principal.getUser();
-        Units parsedUnits = units != null ? Units.fromString(units) : user.getPreferredUnits();
+        Units parsedUnits = resolveUnits(units, principal);
 
         WeatherResult result = weatherAggregatorService.getCurrentWeather(city, parsedUnits);
-        searchHistoryService.record(user, city, parsedUnits);
+        if (principal != null) {
+            searchHistoryService.record(principal.getUser(), city, parsedUnits);
+        }
         return ResponseEntity.ok(WeatherResponse.from(result));
     }
 
     @GetMapping("/forecast")
-    @Operation(summary = "Get hourly and daily forecast for a city")
+    @Operation(summary = "Get hourly and daily forecast for a city (works anonymously)")
     public ResponseEntity<ForecastWeatherResponse> getForecast(
             @RequestParam String city,
             @RequestParam(required = false) String units,
@@ -97,14 +99,14 @@ public class WeatherController {
             throw new IllegalArgumentException("Query parameter 'city' must not be blank");
         }
 
-        Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
+        Units parsedUnits = resolveUnits(units, principal);
         ForecastResult result = forecastService.getForecast(city, parsedUnits);
         return ResponseEntity.ok(ForecastWeatherResponse.from(result));
     }
 
     @GetMapping("/marine")
     @Operation(summary = "Get current sea conditions (water temperature, wave height/direction/period) for a "
-            + "coastal city — fields come back null for cities with no nearby marine data")
+            + "coastal city (works anonymously) — fields come back null for cities with no nearby marine data")
     public ResponseEntity<MarineConditionsResponse> getMarineConditions(
             @RequestParam String city,
             @RequestParam(required = false) String units,
@@ -114,14 +116,15 @@ public class WeatherController {
             throw new IllegalArgumentException("Query parameter 'city' must not be blank");
         }
 
-        Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
+        Units parsedUnits = resolveUnits(units, principal);
         MarineResult result = marineService.getMarineConditions(city, parsedUnits);
         return ResponseEntity.ok(MarineConditionsResponse.from(result));
     }
 
     @GetMapping("/insights")
     @Operation(summary = "Get derived weather insights (moon phase, UV risk, outdoor-activity score, fishing "
-            + "conditions) for a city — fishingConditionLabel comes back null for cities with no marine data")
+            + "conditions) for a city (works anonymously) — fishingConditionLabel comes back null for cities "
+            + "with no marine data")
     public ResponseEntity<WeatherInsightsResponse> getWeatherInsights(
             @RequestParam String city,
             @RequestParam(required = false) String units,
@@ -131,13 +134,14 @@ public class WeatherController {
             throw new IllegalArgumentException("Query parameter 'city' must not be blank");
         }
 
-        Units parsedUnits = units != null ? Units.fromString(units) : principal.getUser().getPreferredUnits();
+        Units parsedUnits = resolveUnits(units, principal);
         WeatherInsightsData data = weatherInsightsService.getInsights(city, parsedUnits);
         return ResponseEntity.ok(WeatherInsightsResponse.from(data));
     }
 
     @GetMapping("/nearby")
-    @Operation(summary = "Get current weather for the caller's GPS coordinates, reverse-geocoded to a city")
+    @Operation(summary = "Get current weather for the caller's GPS coordinates, reverse-geocoded to a city "
+            + "(works anonymously; searches are only recorded to history when called with a valid access token)")
     public ResponseEntity<WeatherResponse> getCurrentWeatherNearby(
             @RequestParam double lat,
             @RequestParam double lon,
@@ -151,16 +155,24 @@ public class WeatherController {
             throw new IllegalArgumentException("Query parameter 'lon' must be between -180 and 180");
         }
 
-        var user = principal.getUser();
-        Units parsedUnits = units != null ? Units.fromString(units) : user.getPreferredUnits();
+        Units parsedUnits = resolveUnits(units, principal);
 
         String city = geocodingService.reverseGeocode(lat, lon)
                 .map(result -> result.name())
                 .orElseThrow(() -> new CityNotFoundException("coordinates %.4f,%.4f".formatted(lat, lon)));
 
         WeatherResult result = weatherAggregatorService.getCurrentWeather(city, parsedUnits);
-        searchHistoryService.record(user, city, parsedUnits);
+        if (principal != null) {
+            searchHistoryService.record(principal.getUser(), city, parsedUnits);
+        }
         return ResponseEntity.ok(WeatherResponse.from(result));
+    }
+
+    private static Units resolveUnits(String units, AuthenticatedUser principal) {
+        if (units != null) {
+            return Units.fromString(units);
+        }
+        return principal != null ? principal.getUser().getPreferredUnits() : Units.METRIC;
     }
 
     @GetMapping("/history")

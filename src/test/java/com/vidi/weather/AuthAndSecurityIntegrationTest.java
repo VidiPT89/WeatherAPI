@@ -60,8 +60,16 @@ class AuthAndSecurityIntegrationTest {
     private WeatherAggregatorService weatherAggregatorService;
 
     @Test
-    void weatherEndpointRejectsRequestsWithoutAToken() throws Exception {
+    void weatherEndpointWorksAnonymouslyWithoutAToken() throws Exception {
+        stubWeatherAggregator();
+
         mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void historyEndpointRejectsRequestsWithoutAToken() throws Exception {
+        mockMvc.perform(get("/api/v1/weather/history"))
                 .andExpect(status().isUnauthorized());
     }
 

@@ -39,11 +39,11 @@ class UnauthenticatedRateLimitIntegrationTest {
     @Test
     void requestsWithNoTokenAtAllAreRateLimitedByIp() throws Exception {
         for (int i = 0; i < 3; i++) {
-            mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa"))
+            mockMvc.perform(get("/api/v1/weather/history"))
                     .andExpect(status().isUnauthorized());
         }
 
-        mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa"))
+        mockMvc.perform(get("/api/v1/weather/history"))
                 .andExpect(status().isTooManyRequests());
     }
 
@@ -56,15 +56,13 @@ class UnauthenticatedRateLimitIntegrationTest {
         String forwardedFor = "198.51.100.23";
 
         for (int i = 0; i < 3; i++) {
-            mockMvc.perform(get("/api/v1/weather")
-                            .param("city", "Lisboa")
+            mockMvc.perform(get("/api/v1/weather/history")
                             .header("X-Forwarded-For", forwardedFor)
                             .header("Authorization", "Bearer not-a-real-jwt"))
                     .andExpect(status().isUnauthorized());
         }
 
-        mockMvc.perform(get("/api/v1/weather")
-                        .param("city", "Lisboa")
+        mockMvc.perform(get("/api/v1/weather/history")
                         .header("X-Forwarded-For", forwardedFor)
                         .header("Authorization", "Bearer not-a-real-jwt"))
                 .andExpect(status().isTooManyRequests());

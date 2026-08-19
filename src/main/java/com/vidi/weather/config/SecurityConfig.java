@@ -71,6 +71,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/v1/auth/**",
+                                "/api/v1/weather",
+                                "/api/v1/weather/nearby",
+                                "/api/v1/weather/forecast",
+                                "/api/v1/weather/marine",
+                                "/api/v1/weather/insights",
+                                "/api/v1/geocoding",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**")

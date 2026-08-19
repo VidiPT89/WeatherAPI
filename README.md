@@ -87,17 +87,17 @@ POST /api/v1/auth/login                    — log in (returns a JWT + refresh t
 POST /api/v1/auth/refresh                  — exchange a refresh token for a new access + refresh token pair
 POST /api/v1/auth/logout                   — revoke a refresh token
 
-GET  /api/v1/weather?city=&units=          — current weather, with automatic fallback (authenticated)
-GET  /api/v1/weather/nearby?lat=&lon=      — current weather for the caller's GPS coordinates, reverse-geocoded to a city
-GET  /api/v1/weather/forecast?city=&units= — hourly + daily forecast (Open-Meteo only, cached)
-GET  /api/v1/weather/marine?city=&units=   — sea conditions (water temp, wave height/direction/period) for a coastal city
-GET  /api/v1/weather/insights?city=&units= — derived insights: moon phase, UV risk, outdoor-activity score, fishing conditions
-GET  /api/v1/weather/history               — search history
-DELETE /api/v1/weather/history/{id}        — remove a single search history entry
-DELETE /api/v1/weather/history             — clear the caller's entire search history
-GET  /api/v1/weather/favorites             — list favorites
-POST /api/v1/weather/favorites             — add a favorite
-DELETE /api/v1/weather/favorites?city=     — remove a favorite
+GET  /api/v1/weather?city=&units=          — current weather, with automatic fallback (anonymous or authenticated; searches are only recorded to history when called with a token)
+GET  /api/v1/weather/nearby?lat=&lon=      — current weather for the caller's GPS coordinates, reverse-geocoded to a city (anonymous or authenticated)
+GET  /api/v1/weather/forecast?city=&units= — hourly + daily forecast (Open-Meteo only, cached) (anonymous or authenticated)
+GET  /api/v1/weather/marine?city=&units=   — sea conditions (water temp, wave height/direction/period) for a coastal city (anonymous or authenticated)
+GET  /api/v1/weather/insights?city=&units= — derived insights: moon phase, UV risk, outdoor-activity score, fishing conditions (anonymous or authenticated)
+GET  /api/v1/weather/history               — search history (authenticated)
+DELETE /api/v1/weather/history/{id}        — remove a single search history entry (authenticated)
+DELETE /api/v1/weather/history             — clear the caller's entire search history (authenticated)
+GET  /api/v1/weather/favorites             — list favorites (authenticated)
+POST /api/v1/weather/favorites             — add a favorite (authenticated)
+DELETE /api/v1/weather/favorites?city=     — remove a favorite (authenticated)
 
 GET  /api/v1/geocoding?query=&limit=       — city search/autocomplete (Open-Meteo geocoding, cached)
 
