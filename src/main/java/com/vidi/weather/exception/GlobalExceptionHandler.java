@@ -1,6 +1,7 @@
 package com.vidi.weather.exception;
 
 import com.vidi.weather.dto.ErrorResponse;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ProviderUnavailableException.class)
     public ResponseEntity<ErrorResponse> handleProviderUnavailable(ProviderUnavailableException ex, HttpServletRequest request) {
         log.error("Weather provider unavailable: {}", ex.getMessage(), ex.getCause());
+        return buildResponse(HttpStatus.BAD_GATEWAY, "The weather provider is currently unavailable. Please try again later.",
+                request, ErrorCode.PROVIDER_UNAVAILABLE);
+    }
+
+    /**
+     * All configured providers' circuit breakers are open (each already tripped by its own
+     * run of real failures) — resilience4j rejects the call before it even reaches the
+     * provider, which without this handler fell through to {@link #handleUnexpected} as an
+     * opaque 500 instead of the same clear "provider unavailable" 502 a direct failure gets.
+     */
+    @ExceptionHandler(CallNotPermittedException.class)
+    public ResponseEntity<ErrorResponse> handleCallNotPermitted(CallNotPermittedException ex, HttpServletRequest request) {
+        log.error("Weather provider circuit breaker open: {}", ex.getMessage());
         return buildResponse(HttpStatus.BAD_GATEWAY, "The weather provider is currently unavailable. Please try again later.",
                 request, ErrorCode.PROVIDER_UNAVAILABLE);
     }
