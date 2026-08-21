@@ -21,6 +21,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 /**
@@ -36,6 +37,14 @@ public class OidcIdTokenVerifier {
     public record VerifiedIdentity(String email, String subject, boolean emailVerified) {
     }
 
+    // Microsoft's "common" multi-tenant endpoint accepts both personal Microsoft accounts and
+    // work/school accounts, and each mints its ID token with its OWN tenant GUID as issuer (e.g.
+    // https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0 for personal
+    // accounts) -- never the literal string "common". An exact-match issuer check therefore
+    // rejects every real Microsoft token; this pattern validates the issuer's *shape* instead.
+    private static final Pattern MICROSOFT_ISSUER_PATTERN =
+            Pattern.compile("^https://login\\.microsoftonline\\.com/[^/]+/v2\\.0$");
+
     private final Map<OAuthProvider, DefaultJWTProcessor<SecurityContext>> processors = new EnumMap<>(OAuthProvider.class);
     private final Map<OAuthProvider, List<String>> clientIdsByProvider = new EnumMap<>(OAuthProvider.class);
 
@@ -50,9 +59,14 @@ public class OidcIdTokenVerifier {
             JWKSource<SecurityContext> jwkSource = new RemoteJWKSet<>(URI.create(config.jwksUri()).toURL());
             DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
             processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, jwkSource));
+            // Google and Apple each have one fixed issuer, checked exactly here. Microsoft doesn't
+            // -- its issuer is validated by shape instead, in verify() below.
+            JWTClaimsSet.Builder expectedClaims = new JWTClaimsSet.Builder();
+            if (provider != OAuthProvider.MICROSOFT) {
+                expectedClaims.issuer(config.issuer());
+            }
             processor.setJWTClaimsSetVerifier(new DefaultJWTClaimsVerifier<>(
-                    new JWTClaimsSet.Builder().issuer(config.issuer()).build(),
-                    Set.of("sub", "exp")));
+                    expectedClaims.build(), Set.of("sub", "exp")));
             processors.put(provider, processor);
 
             List<String> clientIds = config.clientIds() == null ? List.of() : config.clientIds();
@@ -70,6 +84,11 @@ public class OidcIdTokenVerifier {
         try {
             SignedJWT signedJWT = SignedJWT.parse(idToken);
             JWTClaimsSet claims = processors.get(provider).process(signedJWT, null);
+
+            if (provider == OAuthProvider.MICROSOFT
+                    && !MICROSOFT_ISSUER_PATTERN.matcher(String.valueOf(claims.getIssuer())).matches()) {
+                throw new OAuthTokenInvalidException(provider);
+            }
 
             List<String> expectedAudiences = clientIdsByProvider.get(provider);
             boolean audienceOk = expectedAudiences.isEmpty()
