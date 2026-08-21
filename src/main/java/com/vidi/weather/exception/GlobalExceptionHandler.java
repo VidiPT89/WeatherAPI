@@ -81,6 +81,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage(), request, ErrorCode.INVALID_REFRESH_TOKEN);
     }
 
+    @ExceptionHandler(OAuthTokenInvalidException.class)
+    public ResponseEntity<ErrorResponse> handleOAuthTokenInvalid(OAuthTokenInvalidException ex, HttpServletRequest request) {
+        log.warn("OAuth token verification failed: {}", ex.getMessage());
+        return buildResponse(HttpStatus.UNAUTHORIZED, ex.getMessage(), request, ErrorCode.OAUTH_TOKEN_INVALID);
+    }
+
     @ExceptionHandler(FavoriteAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleFavoriteAlreadyExists(FavoriteAlreadyExistsException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request, ErrorCode.FAVORITE_ALREADY_EXISTS);

@@ -12,6 +12,7 @@ import com.vidi.weather.entity.User;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.security.JwtService;
 import com.vidi.weather.security.RefreshTokenService;
+import com.vidi.weather.security.oauth.OidcIdTokenVerifier;
 import com.vidi.weather.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -31,8 +32,9 @@ class AuthControllerRefreshRetryTest {
     private final AuthenticationManager authenticationManager = mock(AuthenticationManager.class);
     private final JwtService jwtService = mock(JwtService.class);
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+    private final OidcIdTokenVerifier oidcIdTokenVerifier = mock(OidcIdTokenVerifier.class);
     private final AuthController controller =
-            new AuthController(userService, authenticationManager, jwtService, refreshTokenService);
+            new AuthController(userService, authenticationManager, jwtService, refreshTokenService, oidcIdTokenVerifier);
 
     private final User user = new User("test@example.com", "hash", Units.METRIC);
 

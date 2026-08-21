@@ -24,6 +24,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <bucket4j.version>8.14.0</bucket4j.version>
         <resilience4j.version>2.3.0</resilience4j.version>
+        <nimbus-jose-jwt.version>9.37.3</nimbus-jose-jwt.version>
     </properties>
 
     <dependencies>
@@ -95,6 +96,14 @@
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-spring-boot3</artifactId>
             <version>${resilience4j.version}</version>
+        </dependency>
+        <!-- Verifies Google/Apple/Microsoft ID tokens against each provider's public JWKS (social
+             login): generic enough to serve all three from one verifier, unlike a
+             provider-specific SDK. -->
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+            <version>${nimbus-jose-jwt.version}</version>
         </dependency>
 
         <dependency>

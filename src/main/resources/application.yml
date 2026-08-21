@@ -71,6 +71,30 @@ resilience4j:
         retry-exceptions:
           - com.vidi.weather.exception.ProviderUnavailableException
 
+# Sole account promoted to ADMIN on creation (UserService) -- see V6__add_oauth_login.sql for
+# accounts that predate this. A default is safe here (unlike JWT_SECRET): it's not a secret, and
+# an unset env var in a real deployment would just mean nobody is admin, not a security hole.
+admin:
+  email: ${ADMIN_EMAIL:ividi.dev@gmail.com}
+
+# Social login: the backend only verifies ID tokens the client already obtained natively from
+# each provider's own SDK, so no client *secret* is needed here -- client-ids is the (non-secret)
+# audience a token's `aud` claim must match. Comma-separated since a provider issues a different
+# client id per platform (web/iOS/Android) that all need to be accepted.
+oauth:
+  google:
+    issuer: https://accounts.google.com
+    jwks-uri: https://www.googleapis.com/oauth2/v3/certs
+    client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+  apple:
+    issuer: https://appleid.apple.com
+    jwks-uri: https://appleid.apple.com/auth/keys
+    client-ids: ${APPLE_OAUTH_CLIENT_IDS:}
+  microsoft:
+    issuer: https://login.microsoftonline.com/common/v2.0
+    jwks-uri: https://login.microsoftonline.com/common/discovery/v2.0/keys
+    client-ids: ${MICROSOFT_OAUTH_CLIENT_IDS:}
+
 # No fallback for JWT_SECRET: a checked-in default -- even one labeled "local dev only" --
 # is a public value the moment this repo is public, and a silently-unset env var in any real
 # deployment would fall back to signing tokens with a secret anyone can read on GitHub.

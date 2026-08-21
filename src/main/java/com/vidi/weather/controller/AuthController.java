@@ -2,12 +2,15 @@ package com.vidi.weather.controller;
 
 import com.vidi.weather.dto.AuthResponse;
 import com.vidi.weather.dto.LoginRequest;
+import com.vidi.weather.dto.OAuthLoginRequest;
 import com.vidi.weather.dto.RefreshRequest;
 import com.vidi.weather.dto.RegisterRequest;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.InvalidCredentialsException;
+import com.vidi.weather.model.OAuthProvider;
 import com.vidi.weather.security.JwtService;
 import com.vidi.weather.security.RefreshTokenService;
+import com.vidi.weather.security.oauth.OidcIdTokenVerifier;
 import com.vidi.weather.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,16 +36,19 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final OidcIdTokenVerifier oidcIdTokenVerifier;
 
     public AuthController(
             UserService userService,
             AuthenticationManager authenticationManager,
             JwtService jwtService,
-            RefreshTokenService refreshTokenService) {
+            RefreshTokenService refreshTokenService,
+            OidcIdTokenVerifier oidcIdTokenVerifier) {
         this.userService = userService;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.oidcIdTokenVerifier = oidcIdTokenVerifier;
     }
 
     @PostMapping("/register")
@@ -63,6 +70,19 @@ public class AuthController {
         }
 
         User user = userService.findByEmail(request.email());
+        return ResponseEntity.ok(authResponseFor(user));
+    }
+
+    @PostMapping("/oauth/{provider}")
+    @Operation(summary = "Log in (or register) with a Google/Apple/Microsoft ID token obtained natively by the "
+            + "client -- creates the account on first sign-in, links it to an existing LOCAL account sharing the "
+            + "same provider-verified email, or logs in an already-linked account")
+    public ResponseEntity<AuthResponse> oauthLogin(
+            @PathVariable String provider, @Valid @RequestBody OAuthLoginRequest request) {
+        OAuthProvider oAuthProvider = OAuthProvider.valueOf(provider.toUpperCase());
+        OidcIdTokenVerifier.VerifiedIdentity identity = oidcIdTokenVerifier.verify(oAuthProvider, request.idToken());
+        User user = userService.findOrCreateFromOAuth(
+                oAuthProvider, identity.subject(), identity.email(), identity.emailVerified());
         return ResponseEntity.ok(authResponseFor(user));
     }
 
