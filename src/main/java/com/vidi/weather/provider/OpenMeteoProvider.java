@@ -199,13 +199,32 @@ public class OpenMeteoProvider implements WeatherProvider {
         return PROVIDER_NAME;
     }
 
+    // Lets a caller disambiguate same-named cities (e.g. Beja, Portugal vs. Beja, Tunisia) by
+    // appending ", <country>" -- the exact format the search-suggestion dropdown in every client
+    // now submits, since Open-Meteo's own relevance ranking for a bare name isn't population-only
+    // and can rank a foreign namesake above the intended city.
     private GeocodingResult resolveLocation(String city) {
-        List<GeocodingResult> primary = fetchGeocodingResults(city, 1, null);
+        String cityName = city;
+        String countryHint = null;
+        int lastComma = city.lastIndexOf(',');
+        if (lastComma > 0 && lastComma < city.length() - 1) {
+            cityName = city.substring(0, lastComma).trim();
+            countryHint = city.substring(lastComma + 1).trim();
+        }
+
+        if (countryHint != null) {
+            GeocodingResult matched = resolveWithCountryHint(cityName, countryHint);
+            if (matched != null) {
+                return matched;
+            }
+        }
+
+        List<GeocodingResult> primary = fetchGeocodingResults(cityName, 1, null);
         if (isConfidentMatch(primary)) {
             return primary.get(0);
         }
 
-        List<GeocodingResult> localized = fetchGeocodingResults(city, 1, DISAMBIGUATION_LANGUAGE);
+        List<GeocodingResult> localized = fetchGeocodingResults(cityName, 1, DISAMBIGUATION_LANGUAGE);
         if (isConfidentMatch(localized)) {
             return localized.get(0);
         }
@@ -215,6 +234,27 @@ public class OpenMeteoProvider implements WeatherProvider {
             throw new CityNotFoundException(city);
         }
         return fallback.get(0);
+    }
+
+    private static final int COUNTRY_HINT_CANDIDATE_COUNT = 10;
+
+    private GeocodingResult resolveWithCountryHint(String cityName, String countryHint) {
+        List<GeocodingResult> candidates = fetchGeocodingResults(cityName, COUNTRY_HINT_CANDIDATE_COUNT, null);
+        GeocodingResult match = firstMatchingCountry(candidates, countryHint);
+        if (match != null) {
+            return match;
+        }
+
+        List<GeocodingResult> localizedCandidates =
+                fetchGeocodingResults(cityName, COUNTRY_HINT_CANDIDATE_COUNT, DISAMBIGUATION_LANGUAGE);
+        return firstMatchingCountry(localizedCandidates, countryHint);
+    }
+
+    private static GeocodingResult firstMatchingCountry(List<GeocodingResult> candidates, String countryHint) {
+        return candidates.stream()
+                .filter(result -> result.country() != null && result.country().equalsIgnoreCase(countryHint))
+                .findFirst()
+                .orElse(null);
     }
 
     // Notable places carry population data; unrelated place-name collisions (e.g. Mozambican villages named "Lisboa") don't.
