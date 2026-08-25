@@ -47,8 +47,10 @@ public class DiagnosticsController {
     }
 
     private void pingOpenMeteo() {
+        String apiKey = properties.openMeteo().apiKey();
         String uri = properties.openMeteo().forecastUrl()
-                + "?latitude=38.72&longitude=-9.13&current=temperature_2m";
+                + "?latitude=38.72&longitude=-9.13&current=temperature_2m"
+                + (apiKey != null && !apiKey.isBlank() ? "&apikey=" + apiKey : "");
         restTemplate.getForObject(uri, String.class);
     }
 

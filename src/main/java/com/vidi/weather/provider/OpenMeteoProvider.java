@@ -267,8 +267,18 @@ public class OpenMeteoProvider implements WeatherProvider {
         return response == null || response.results() == null ? List.of() : response.results();
     }
 
+    /** Appends the API key when configured -- see {@link WeatherApiProperties.OpenMeteo}. */
+    private UriComponentsBuilder openMeteoUri(String baseUrl) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
+        String apiKey = properties.openMeteo().apiKey();
+        if (apiKey != null && !apiKey.isBlank()) {
+            builder.queryParam("apikey", apiKey);
+        }
+        return builder;
+    }
+
     private GeocodingResponse fetchGeocodingResponse(String query, int count, String language) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().geocodingUrl())
+        UriComponentsBuilder builder = openMeteoUri(properties.openMeteo().geocodingUrl())
                 .queryParam("name", query)
                 .queryParam("count", count)
                 .queryParam("format", "json");
@@ -284,7 +294,7 @@ public class OpenMeteoProvider implements WeatherProvider {
         String temperatureUnit = units == Units.IMPERIAL ? "fahrenheit" : "celsius";
         String windSpeedUnit = units == Units.IMPERIAL ? "mph" : "kmh";
 
-        String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().forecastUrl())
+        String uri = openMeteoUri(properties.openMeteo().forecastUrl())
                 .queryParam("latitude", location.latitude())
                 .queryParam("longitude", location.longitude())
                 .queryParam("current", "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code")
@@ -304,7 +314,7 @@ public class OpenMeteoProvider implements WeatherProvider {
         String temperatureUnit = units == Units.IMPERIAL ? "fahrenheit" : "celsius";
         String windSpeedUnit = units == Units.IMPERIAL ? "mph" : "kmh";
 
-        String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().forecastUrl())
+        String uri = openMeteoUri(properties.openMeteo().forecastUrl())
                 .queryParam("latitude", location.latitude())
                 .queryParam("longitude", location.longitude())
                 .queryParam("hourly", "temperature_2m,weather_code,precipitation_probability")
@@ -351,7 +361,7 @@ public class OpenMeteoProvider implements WeatherProvider {
     private MarineResponse fetchMarineSeries(GeocodingResult location, Units units) {
         String temperatureUnit = units == Units.IMPERIAL ? "fahrenheit" : "celsius";
 
-        String uri = UriComponentsBuilder.fromHttpUrl(properties.openMeteo().marineUrl())
+        String uri = openMeteoUri(properties.openMeteo().marineUrl())
                 .queryParam("latitude", location.latitude())
                 .queryParam("longitude", location.longitude())
                 .queryParam("hourly", "wave_height,wave_direction,wave_period,sea_surface_temperature,sea_level_height_msl")

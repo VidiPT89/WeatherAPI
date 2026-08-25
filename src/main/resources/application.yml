@@ -21,9 +21,14 @@ spring:
 
 weather:
   open-meteo:
-    geocoding-url: https://geocoding-api.open-meteo.com/v1/search
-    forecast-url: https://api.open-meteo.com/v1/forecast
-    marine-url: https://marine-api.open-meteo.com/v1/marine
+    # Switches to the customer-api.open-meteo.com domain (dedicated per-account daily quota)
+    # once OPEN_METEO_API_KEY is set on Render -- the anonymous api.open-meteo.com endpoints
+    # share their daily quota with every other app on the same egress IP, which is what
+    # exhausted it under normal Render free-tier use, not our own traffic volume.
+    geocoding-url: ${OPEN_METEO_GEOCODING_URL:https://geocoding-api.open-meteo.com/v1/search}
+    forecast-url: ${OPEN_METEO_FORECAST_URL:https://api.open-meteo.com/v1/forecast}
+    marine-url: ${OPEN_METEO_MARINE_URL:https://marine-api.open-meteo.com/v1/marine}
+    api-key: ${OPEN_METEO_API_KEY:}
   open-weather-map:
     base-url: https://api.openweathermap.org/data/2.5/weather
     reverse-geocoding-url: https://api.openweathermap.org/geo/1.0/reverse

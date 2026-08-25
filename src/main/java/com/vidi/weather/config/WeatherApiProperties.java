@@ -9,7 +9,11 @@ public record WeatherApiProperties(
         Cache cache,
         Http http
 ) {
-    public record OpenMeteo(String geocodingUrl, String forecastUrl, String marineUrl) {
+    // apiKey is blank by default (the free, IP-rate-limited anonymous endpoints) -- setting it
+    // switches to Open-Meteo's customer-api.open-meteo.com domain (see application.yml), which
+    // has its own dedicated daily quota instead of one shared with every other app on the same
+    // egress IP (this is what actually exhausted the anonymous quota under normal use on Render).
+    public record OpenMeteo(String geocodingUrl, String forecastUrl, String marineUrl, String apiKey) {
     }
 
     public record OpenWeatherMap(String baseUrl, String reverseGeocodingUrl, String apiKey) {
