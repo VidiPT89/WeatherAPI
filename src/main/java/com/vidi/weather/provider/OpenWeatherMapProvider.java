@@ -20,8 +20,11 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+// Primary: unlike Open-Meteo's key-less free tier, our API key here gets a quota dedicated to
+// this app, not one shared with every other app on Render's free-tier egress IP -- see
+// conhecimento/decisoes/ADR-001-hosting-free-projetos-pessoais.md.
 @Component
-@Order(2)
+@Order(1)
 public class OpenWeatherMapProvider implements WeatherProvider {
 
     private static final String PROVIDER_NAME = "open-weather-map";

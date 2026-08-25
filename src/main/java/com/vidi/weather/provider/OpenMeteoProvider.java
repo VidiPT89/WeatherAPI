@@ -33,8 +33,12 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+// Fallback: no API key exists for Open-Meteo's free tier (only paid plans have one -- see
+// conhecimento/decisoes/ADR-001-hosting-free-projetos-pessoais.md), so its key-less free
+// endpoint's daily quota is shared across every app on Render's free-tier egress IP, not just
+// ours. OpenWeatherMap (dedicated key/quota) is primary instead.
 @Component
-@Order(1)
+@Order(2)
 public class OpenMeteoProvider implements WeatherProvider {
 
     private static final String PROVIDER_NAME = "open-meteo";
