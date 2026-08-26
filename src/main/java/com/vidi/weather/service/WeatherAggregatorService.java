@@ -38,6 +38,23 @@ public class WeatherAggregatorService {
     }
 
     /**
+     * Same as {@link #getCurrentWeather(String, Units)} but for GPS-based lookups: goes straight
+     * to each provider's coordinates, instead of resolving a reverse-geocoded city name back to
+     * coordinates through that provider's own name-based geocoding (which can fail to match the
+     * exact name a *different* provider used for the reverse-geocoding step).
+     */
+    public WeatherResult getCurrentWeatherByCoordinates(double latitude, double longitude, String cityName, Units units) {
+        Optional<WeatherData> cached = cacheService.get(cityName, units);
+        if (cached.isPresent()) {
+            return new WeatherResult(cached.get(), true);
+        }
+
+        WeatherData fresh = fetchWithFallbackByCoordinates(latitude, longitude, cityName, units);
+        cacheService.put(cityName, units, fresh);
+        return new WeatherResult(fresh, false);
+    }
+
+    /**
      * Tries each configured provider in order, falling back to the next one when a provider
      * is unavailable or its circuit breaker is open. A city genuinely not found is not a
      * provider fault, so it is propagated immediately instead of triggering a fallback.
@@ -48,6 +65,22 @@ public class WeatherAggregatorService {
         for (WeatherProvider provider : providers) {
             try {
                 return resilienceExecutor.call(provider, city, units);
+            } catch (CityNotFoundException ex) {
+                throw ex;
+            } catch (WeatherServiceException | CallNotPermittedException ex) {
+                lastFailure = ex;
+            }
+        }
+
+        throw lastFailure != null ? lastFailure : new ProviderUnavailableException("all-providers", null);
+    }
+
+    private WeatherData fetchWithFallbackByCoordinates(double latitude, double longitude, String cityName, Units units) {
+        RuntimeException lastFailure = null;
+
+        for (WeatherProvider provider : providers) {
+            try {
+                return resilienceExecutor.callByCoordinates(provider, latitude, longitude, cityName, units);
             } catch (CityNotFoundException ex) {
                 throw ex;
             } catch (WeatherServiceException | CallNotPermittedException ex) {

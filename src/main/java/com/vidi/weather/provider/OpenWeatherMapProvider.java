@@ -45,11 +45,26 @@ public class OpenWeatherMapProvider implements WeatherProvider {
                 .queryParam("appid", properties.openWeatherMap().apiKey())
                 .toUriString();
 
+        return fetchAndConvert(uri, city, units);
+    }
+
+    @Override
+    public WeatherData fetchCurrentWeatherByCoordinates(double latitude, double longitude, String cityName, Units units) {
+        String uri = UriComponentsBuilder.fromHttpUrl(properties.openWeatherMap().baseUrl())
+                .queryParam("lat", latitude)
+                .queryParam("lon", longitude)
+                .queryParam("appid", properties.openWeatherMap().apiKey())
+                .toUriString();
+
+        return fetchAndConvert(uri, cityName, units);
+    }
+
+    private WeatherData fetchAndConvert(String uri, String fallbackName, Units units) {
         OpenWeatherMapResponse response;
         try {
             response = restTemplate.getForObject(uri, OpenWeatherMapResponse.class);
         } catch (HttpClientErrorException.NotFound ex) {
-            throw new CityNotFoundException(city);
+            throw new CityNotFoundException(fallbackName);
         } catch (HttpClientErrorException.TooManyRequests ex) {
             throw new ProviderQuotaExceededException(PROVIDER_NAME);
         } catch (RestClientException ex) {
@@ -61,7 +76,7 @@ public class OpenWeatherMapProvider implements WeatherProvider {
         }
 
         return new WeatherData(
-                response.name() != null ? response.name() : city,
+                response.name() != null ? response.name() : fallbackName,
                 response.sys() != null ? response.sys().country() : null,
                 UnitConverter.kelvinToRequestedTemperature(response.main().temp(), units),
                 UnitConverter.kelvinToRequestedTemperature(response.main().feelsLike(), units),

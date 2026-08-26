@@ -60,6 +60,15 @@ public class OpenMeteoProvider implements WeatherProvider {
     @Override
     public WeatherData fetchCurrentWeather(String city, Units units) {
         GeocodingResult location = resolveLocation(city);
+        return currentWeatherAt(location, units);
+    }
+
+    @Override
+    public WeatherData fetchCurrentWeatherByCoordinates(double latitude, double longitude, String cityName, Units units) {
+        return currentWeatherAt(new GeocodingResult(cityName, null, latitude, longitude), units);
+    }
+
+    private WeatherData currentWeatherAt(GeocodingResult location, Units units) {
         ForecastResponse.CurrentWeather current = fetchCurrentConditions(location, units);
 
         return new WeatherData(

@@ -13,6 +13,7 @@ import com.vidi.weather.model.MarineResult;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherInsightsData;
 import com.vidi.weather.model.WeatherResult;
+import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import com.vidi.weather.security.AuthenticatedUser;
 import com.vidi.weather.service.FavoriteService;
 import com.vidi.weather.service.ForecastService;
@@ -157,13 +158,13 @@ public class WeatherController {
 
         Units parsedUnits = resolveUnits(units, principal);
 
-        String city = geocodingService.reverseGeocode(lat, lon)
-                .map(result -> result.name())
+        GeocodingResult location = geocodingService.reverseGeocode(lat, lon)
                 .orElseThrow(() -> new CityNotFoundException("coordinates %.4f,%.4f".formatted(lat, lon)));
 
-        WeatherResult result = weatherAggregatorService.getCurrentWeather(city, parsedUnits);
+        WeatherResult result = weatherAggregatorService.getCurrentWeatherByCoordinates(
+                location.latitude(), location.longitude(), location.name(), parsedUnits);
         if (principal != null) {
-            searchHistoryService.record(principal.getUser(), city, parsedUnits);
+            searchHistoryService.record(principal.getUser(), location.name(), parsedUnits);
         }
         return ResponseEntity.ok(WeatherResponse.from(result));
     }

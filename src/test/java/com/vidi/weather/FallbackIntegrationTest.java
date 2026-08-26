@@ -32,8 +32,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
-        "resilience4j.circuitbreaker.instances.open-meteo.minimum-number-of-calls=3",
-        "resilience4j.circuitbreaker.instances.open-meteo.sliding-window-size=3",
+        "resilience4j.circuitbreaker.instances.open-weather-map.minimum-number-of-calls=3",
+        "resilience4j.circuitbreaker.instances.open-weather-map.sliding-window-size=3",
         "resilience4j.retry.instances.open-meteo.wait-duration=10ms",
         "resilience4j.retry.instances.open-weather-map.wait-duration=10ms"
 })
@@ -49,6 +49,7 @@ class FallbackIntegrationTest {
         registry.add("weather.open-meteo.geocoding-url", () -> wireMock.baseUrl() + "/geo/v1/search");
         registry.add("weather.open-meteo.forecast-url", () -> wireMock.baseUrl() + "/v1/forecast");
         registry.add("weather.open-weather-map.base-url", () -> wireMock.baseUrl() + "/data/2.5/weather");
+        registry.add("weather.open-weather-map.reverse-geocoding-url", () -> wireMock.baseUrl() + "/geo/1.0/reverse");
     }
 
     @Autowired
@@ -77,44 +78,74 @@ class FallbackIntegrationTest {
 
         mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.provider").value("open-meteo"));
-    }
-
-    @Test
-    void fallsBackToSecondaryProvider_whenPrimaryFails() throws Exception {
-        stubOpenMeteoFailure(500);
-        stubOpenWeatherMapSuccess();
-
-        mockMvc.perform(get("/api/v1/weather").param("city", "Porto").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.provider").value("open-weather-map"));
     }
 
     @Test
+    void fallsBackToSecondaryProvider_whenPrimaryFails() throws Exception {
+        stubOpenWeatherMapFailure(500);
+        stubOpenMeteoSuccess();
+
+        mockMvc.perform(get("/api/v1/weather").param("city", "Porto").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("open-meteo"));
+    }
+
+    @Test
     void circuitBreakerOpensAfterRepeatedFailures_andStopsCallingPrimary() throws Exception {
-        stubOpenMeteoFailure(500);
-        stubOpenWeatherMapSuccess();
+        stubOpenWeatherMapFailure(500);
+        stubOpenMeteoSuccess();
 
         for (int i = 0; i < 3; i++) {
             mockMvc.perform(get("/api/v1/weather").param("city", "CircuitCity" + i).header("Authorization", "Bearer " + token))
                     .andExpect(status().isOk());
         }
 
-        assertThat(circuitBreakerRegistry.circuitBreaker("open-meteo").getState())
+        assertThat(circuitBreakerRegistry.circuitBreaker("open-weather-map").getState())
                 .isEqualTo(CircuitBreaker.State.OPEN);
 
         int hitsBeforeNextCall = wireMock.findAll(
-                WireMock.getRequestedFor(WireMock.urlPathEqualTo("/geo/v1/search"))).size();
+                WireMock.getRequestedFor(WireMock.urlPathEqualTo("/data/2.5/weather"))).size();
 
         mockMvc.perform(get("/api/v1/weather").param("city", "CircuitCityAfterOpen").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.provider").value("open-weather-map"));
+                .andExpect(jsonPath("$.provider").value("open-meteo"));
 
         int hitsAfterNextCall = wireMock.findAll(
-                WireMock.getRequestedFor(WireMock.urlPathEqualTo("/geo/v1/search"))).size();
+                WireMock.getRequestedFor(WireMock.urlPathEqualTo("/data/2.5/weather"))).size();
         assertThat(hitsAfterNextCall)
-                .as("the open circuit breaker should skip calling open-meteo entirely")
+                .as("the open circuit breaker should skip calling open-weather-map entirely")
                 .isEqualTo(hitsBeforeNextCall);
+    }
+
+    @Test
+    void nearbyWeather_usesCoordinatesDirectly_evenWhenReverseGeocodedNameWouldNotResolveByName() throws Exception {
+        // The reverse-geocoded name ("Agualva-Cacém") is deliberately never stubbed on the
+        // weather-by-name endpoint (?q=) below -- only the by-coordinates one (?lat=&lon=) is.
+        // If /nearby round-tripped through the name instead of using the coordinates it already
+        // has, this would fail with CITY_NOT_FOUND, reproducing the real production bug.
+        wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/geo/1.0/reverse"))
+                .willReturn(WireMock.aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                [{"name": "Agualva-Cacém", "country": "PT", "lat": 38.7629, "lon": -9.3025}]
+                                """)));
+        wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/data/2.5/weather"))
+                .withQueryParam("lat", WireMock.equalTo("38.7629"))
+                .withQueryParam("lon", WireMock.equalTo("-9.3025"))
+                .willReturn(WireMock.aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"weather": [{"description": "clear sky"}],
+                                 "main": {"temp": 293.15, "feels_like": 292.0, "humidity": 55},
+                                 "wind": {"speed": 3.0}, "name": "Agualva-Cacém", "sys": {"country": "PT"}}
+                                """)));
+
+        mockMvc.perform(get("/api/v1/weather/nearby")
+                        .param("lat", "38.7629").param("lon", "-9.3025")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Agualva-Cacém"));
     }
 
     private void stubOpenMeteoSuccess() {
@@ -134,6 +165,11 @@ class FallbackIntegrationTest {
 
     private void stubOpenMeteoFailure(int status) {
         wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/geo/v1/search"))
+                .willReturn(WireMock.aResponse().withStatus(status)));
+    }
+
+    private void stubOpenWeatherMapFailure(int status) {
+        wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/data/2.5/weather"))
                 .willReturn(WireMock.aResponse().withStatus(status)));
     }
 

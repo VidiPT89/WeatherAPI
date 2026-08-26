@@ -149,7 +149,7 @@ class WeatherControllerTest {
     void returns200WithNearbyWeather_whenCoordinatesResolveToACity() throws Exception {
         when(geocodingService.reverseGeocode(38.7167, -9.1333))
                 .thenReturn(java.util.Optional.of(new GeocodingResult("Lisboa", "Portugal", 38.7167, -9.1333)));
-        when(weatherAggregatorService.getCurrentWeather(eq("Lisboa"), eq(Units.METRIC)))
+        when(weatherAggregatorService.getCurrentWeatherByCoordinates(eq(38.7167), eq(-9.1333), eq("Lisboa"), eq(Units.METRIC)))
                 .thenReturn(new WeatherResult(sampleData, false));
 
         mockMvc.perform(get("/api/v1/weather/nearby")

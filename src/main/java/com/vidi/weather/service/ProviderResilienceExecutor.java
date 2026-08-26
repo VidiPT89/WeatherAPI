@@ -30,6 +30,11 @@ public class ProviderResilienceExecutor {
         return execute(provider.getProviderName(), () -> provider.fetchCurrentWeather(city, units));
     }
 
+    public WeatherData callByCoordinates(WeatherProvider provider, double latitude, double longitude, String cityName, Units units) {
+        return execute(provider.getProviderName(),
+                () -> provider.fetchCurrentWeatherByCoordinates(latitude, longitude, cityName, units));
+    }
+
     public <T> T execute(String providerName, Supplier<T> call) {
         CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(providerName);
         Retry retry = retryRegistry.retry(providerName);
