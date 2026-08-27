@@ -42,7 +42,8 @@ class OpenWeatherMapProviderTest {
         WeatherApiProperties properties = new WeatherApiProperties(
                 new WeatherApiProperties.OpenMeteo("unused", "unused", "unused"),
                 new WeatherApiProperties.OpenWeatherMap(
-                        wireMock.baseUrl() + "/data/2.5/weather", wireMock.baseUrl() + "/geo/1.0/reverse", "test-key"),
+                        wireMock.baseUrl() + "/data/2.5/weather", wireMock.baseUrl() + "/geo/1.0/reverse",
+                        wireMock.baseUrl() + "/data/2.5/forecast", "test-key"),
                 new WeatherApiProperties.Cache(15, 500),
                 new WeatherApiProperties.Http(connectTimeoutMs, readTimeoutMs));
 

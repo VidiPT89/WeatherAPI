@@ -50,6 +50,7 @@ class FallbackIntegrationTest {
         registry.add("weather.open-meteo.forecast-url", () -> wireMock.baseUrl() + "/v1/forecast");
         registry.add("weather.open-weather-map.base-url", () -> wireMock.baseUrl() + "/data/2.5/weather");
         registry.add("weather.open-weather-map.reverse-geocoding-url", () -> wireMock.baseUrl() + "/geo/1.0/reverse");
+        registry.add("weather.open-weather-map.forecast-url", () -> wireMock.baseUrl() + "/data/2.5/forecast");
     }
 
     @Autowired
@@ -146,6 +147,35 @@ class FallbackIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.city").value("Agualva-Cacém"));
+    }
+
+    @Test
+    void forecast_fallsBackToOpenWeatherMap_whenOpenMeteoIsUnavailable() throws Exception {
+        // Open-Meteo's own geocoding (needed before it can even attempt the forecast call) fails
+        // outright -- e.g. the shared-IP quota issue documented in ADR-001.
+        wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/geo/v1/search"))
+                .willReturn(WireMock.aResponse().withStatus(429)));
+        wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/data/2.5/forecast"))
+                .willReturn(WireMock.aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {
+                                  "list": [
+                                    {"dt": 1735689600, "main": {"temp": 288.0, "temp_min": 286.0, "temp_max": 290.0},
+                                     "weather": [{"description": "clear sky"}], "wind": {"speed": 3.5}, "pop": 0.1},
+                                    {"dt": 1735700400, "main": {"temp": 291.0, "temp_min": 289.0, "temp_max": 293.0},
+                                     "weather": [{"description": "few clouds"}], "wind": {"speed": 4.1}, "pop": 0.2}
+                                  ],
+                                  "city": {"country": "PT", "timezone": 3600, "sunrise": 1735628400, "sunset": 1735668000}
+                                }
+                                """)));
+
+        mockMvc.perform(get("/api/v1/weather/forecast").param("city", "Cascais").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("open-weather-map"))
+                .andExpect(jsonPath("$.country").value("PT"))
+                .andExpect(jsonPath("$.hourly[0].description").value("clear sky"))
+                .andExpect(jsonPath("$.daily[0].description").isNotEmpty());
     }
 
     @Test
