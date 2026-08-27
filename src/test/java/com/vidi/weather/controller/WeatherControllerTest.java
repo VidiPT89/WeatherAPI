@@ -187,6 +187,23 @@ class WeatherControllerTest {
     }
 
     @Test
+    void returns400_whenLatIsNaN() throws Exception {
+        // NaN fails both `< -90` and `> 90`, so a naive range check silently lets it through.
+        mockMvc.perform(get("/api/v1/weather/nearby")
+                        .param("lat", "NaN").param("lon", "0")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returns400_whenLonIsInfinite() throws Exception {
+        mockMvc.perform(get("/api/v1/weather/nearby")
+                        .param("lat", "0").param("lon", "Infinity")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void returns200WithForecast_whenCityIsValid() throws Exception {
         ForecastData forecastData = new ForecastData(
                 "Lisboa", "Portugal", Units.METRIC, "open-meteo",

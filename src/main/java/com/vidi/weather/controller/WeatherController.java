@@ -149,10 +149,10 @@ public class WeatherController {
             @RequestParam(required = false) String units,
             @AuthenticationPrincipal AuthenticatedUser principal) {
 
-        if (lat < -90 || lat > 90) {
+        if (Double.isNaN(lat) || Double.isInfinite(lat) || lat < -90 || lat > 90) {
             throw new IllegalArgumentException("Query parameter 'lat' must be between -90 and 90");
         }
-        if (lon < -180 || lon > 180) {
+        if (Double.isNaN(lon) || Double.isInfinite(lon) || lon < -180 || lon > 180) {
             throw new IllegalArgumentException("Query parameter 'lon' must be between -180 and 180");
         }
 
