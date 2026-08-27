@@ -62,4 +62,32 @@ class CacheServiceTest {
 
         assertThat(cacheService.get("Lisboa", Units.METRIC)).isEmpty();
     }
+
+    @Test
+    void returnsStoredValue_afterPutByCoordinates() {
+        CacheService cacheService = new CacheService(Caffeine.newBuilder().build());
+
+        cacheService.putByCoordinates(38.7167, -9.1333, Units.METRIC, sampleData);
+
+        assertThat(cacheService.getByCoordinates(38.7167, -9.1333, Units.METRIC)).contains(sampleData);
+    }
+
+    @Test
+    void doesNotConfuseDistinctLocationsSharingTheSameCityName_whenKeyedByCoordinates() {
+        // Real bug: two different real-world places can reverse-geocode to the same city name
+        // (e.g. "Springfield" in different countries). GPS lookups must be cached by coordinates,
+        // not by name, or one location's weather leaks into another's /nearby response.
+        CacheService cacheService = new CacheService(Caffeine.newBuilder().build());
+        WeatherData otherLocationSameName = new WeatherData(
+                "Springfield", "United States", 5.0, 3.0, 80, 4.0, "Cloudy", Units.METRIC, "open-meteo", Instant.now());
+
+        cacheService.putByCoordinates(39.7817, -89.6501, Units.METRIC, sampleData);
+
+        assertThat(cacheService.getByCoordinates(37.2153, -93.2982, Units.METRIC)).isEmpty();
+
+        cacheService.putByCoordinates(37.2153, -93.2982, Units.METRIC, otherLocationSameName);
+
+        assertThat(cacheService.getByCoordinates(39.7817, -89.6501, Units.METRIC)).contains(sampleData);
+        assertThat(cacheService.getByCoordinates(37.2153, -93.2982, Units.METRIC)).contains(otherLocationSameName);
+    }
 }

@@ -44,13 +44,13 @@ public class WeatherAggregatorService {
      * exact name a *different* provider used for the reverse-geocoding step).
      */
     public WeatherResult getCurrentWeatherByCoordinates(double latitude, double longitude, String cityName, Units units) {
-        Optional<WeatherData> cached = cacheService.get(cityName, units);
+        Optional<WeatherData> cached = cacheService.getByCoordinates(latitude, longitude, units);
         if (cached.isPresent()) {
             return new WeatherResult(cached.get(), true);
         }
 
         WeatherData fresh = fetchWithFallbackByCoordinates(latitude, longitude, cityName, units);
-        cacheService.put(cityName, units, fresh);
+        cacheService.putByCoordinates(latitude, longitude, units, fresh);
         return new WeatherResult(fresh, false);
     }
 

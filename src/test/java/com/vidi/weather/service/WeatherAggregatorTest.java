@@ -100,6 +100,31 @@ class WeatherAggregatorTest {
     }
 
     @Test
+    void byCoordinates_usesCoordinateCacheKey_notCityName() {
+        when(cacheService.getByCoordinates(38.7167, -9.1333, Units.METRIC)).thenReturn(Optional.empty());
+        when(resilienceExecutor.callByCoordinates(primaryProvider, 38.7167, -9.1333, "Lisboa", Units.METRIC))
+                .thenReturn(sampleData);
+
+        WeatherResult result = aggregatorService.getCurrentWeatherByCoordinates(38.7167, -9.1333, "Lisboa", Units.METRIC);
+
+        assertThat(result.data()).isEqualTo(sampleData);
+        verify(cacheService).putByCoordinates(38.7167, -9.1333, Units.METRIC, sampleData);
+        verify(cacheService, never()).get(any(), any());
+        verify(cacheService, never()).put(any(), any(), any());
+    }
+
+    @Test
+    void byCoordinates_returnsCachedWeather_whenCoordinateCacheHasEntry() {
+        when(cacheService.getByCoordinates(38.7167, -9.1333, Units.METRIC)).thenReturn(Optional.of(sampleData));
+
+        WeatherResult result = aggregatorService.getCurrentWeatherByCoordinates(38.7167, -9.1333, "Lisboa", Units.METRIC);
+
+        assertThat(result.fromCache()).isTrue();
+        assertThat(result.data()).isEqualTo(sampleData);
+        verifyNoInteractions(resilienceExecutor);
+    }
+
+    @Test
     void doesNotFallBack_whenCityIsNotFound() {
         when(cacheService.get(any(), any())).thenReturn(Optional.empty());
         when(resilienceExecutor.call(primaryProvider, "Atlantis", Units.METRIC))
