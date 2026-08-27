@@ -26,6 +26,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -82,11 +83,31 @@ public class WeatherController {
 
         Units parsedUnits = resolveUnits(units, principal);
 
-        WeatherResult result = weatherAggregatorService.getCurrentWeather(city, parsedUnits);
+        WeatherResult result = resolveCountryQualifiedCity(city)
+                .map(resolved -> weatherAggregatorService.getCurrentWeatherByCoordinates(
+                        resolved.latitude(), resolved.longitude(), resolved.name(), parsedUnits))
+                .orElseGet(() -> weatherAggregatorService.getCurrentWeather(city, parsedUnits));
         if (principal != null) {
             searchHistoryService.record(principal.getUser(), city, parsedUnits);
         }
         return ResponseEntity.ok(WeatherResponse.from(result));
+    }
+
+    /**
+     * When {@code city} is the "name, country" format the search-suggestion dropdown submits
+     * (see {@link GeocodingService#resolveByNameAndCountry}), resolves it to exact coordinates up
+     * front instead of forwarding the raw string to a provider whose weather-by-name endpoint
+     * doesn't understand a full country name. A bare name (no comma) or a hint that fails to
+     * match any candidate falls through to the normal by-name lookup unchanged.
+     */
+    private Optional<GeocodingResult> resolveCountryQualifiedCity(String city) {
+        int lastComma = city.lastIndexOf(',');
+        if (lastComma <= 0 || lastComma >= city.length() - 1) {
+            return Optional.empty();
+        }
+        String cityName = city.substring(0, lastComma).trim();
+        String countryHint = city.substring(lastComma + 1).trim();
+        return geocodingService.resolveByNameAndCountry(cityName, countryHint);
     }
 
     @GetMapping("/forecast")

@@ -148,6 +148,40 @@ class FallbackIntegrationTest {
                 .andExpect(jsonPath("$.city").value("Agualva-Cacém"));
     }
 
+    @Test
+    void countryQualifiedCity_resolvesToTheMatchingCountry_notTheTopBareNameMatch() throws Exception {
+        // "Beja" alone has same-named candidates in several countries; OpenWeatherMap's
+        // weather-by-name endpoint only understands ISO country codes, not "Portugal" spelled
+        // out, so forwarding "Beja, Portugal" to it verbatim would silently match a different
+        // "Beja" (whichever OpenWeatherMap's own bare-name search ranks first) instead of failing
+        // loudly or resolving the one actually tapped in the suggestion dropdown.
+        wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/geo/v1/search"))
+                .withQueryParam("name", WireMock.equalTo("Beja"))
+                .willReturn(WireMock.aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"results": [
+                                    {"name": "Beja", "country": "Tunisia", "latitude": 36.72564, "longitude": 9.18169},
+                                    {"name": "Beja", "country": "Portugal", "latitude": 38.01469, "longitude": -7.86284}
+                                ]}
+                                """)));
+        wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/data/2.5/weather"))
+                .withQueryParam("lat", WireMock.equalTo("38.01469"))
+                .withQueryParam("lon", WireMock.equalTo("-7.86284"))
+                .willReturn(WireMock.aResponse().withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                                {"weather": [{"description": "overcast clouds"}],
+                                 "main": {"temp": 288.7, "feels_like": 288.75, "humidity": 94},
+                                 "wind": {"speed": 4.63}, "name": "Beja", "sys": {"country": "PT"}}
+                                """)));
+
+        mockMvc.perform(get("/api/v1/weather").param("city", "Beja, Portugal").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Beja"))
+                .andExpect(jsonPath("$.country").value("PT"));
+    }
+
     private void stubOpenMeteoSuccess() {
         wireMock.stubFor(WireMock.get(WireMock.urlPathEqualTo("/geo/v1/search"))
                 .willReturn(WireMock.aResponse().withStatus(200)
