@@ -4,17 +4,17 @@
 
 **Clients built on this API:** [Web (Next.js)](https://github.com/VidiPT89/WeatherApp) ([live](https://weather-app-psi-inky-53.vercel.app)) · [iOS (Swift/SwiftUI)](https://github.com/VidiPT89/WeatherApp-iOS) · [Android (Kotlin/Compose)](https://github.com/VidiPT89/WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
 
-**Live API:** [weather-api-production-68ff.up.railway.app](https://weather-api-production-68ff.up.railway.app) (Swagger UI is disabled on this deployment — see *Notes*; run locally to explore it interactively)
+**Live API:** [weatherapi-4r5x.onrender.com](https://weatherapi-4r5x.onrender.com) (Render free tier, so the first request after a quiet period can take up to a minute while the instance wakes up. Swagger UI is disabled on this deployment, see *Notes*; run locally to explore it interactively)
 
-Weather API Aggregator queries a primary weather provider (Open-Meteo) and falls back automatically to a secondary one (OpenWeatherMap) if the first is down, each call protected by a Resilience4j circuit breaker and retry with exponential backoff. On top of that sits a full per-user layer — JWT authentication with refresh tokens, search history, favorite cities and unit preferences backed by PostgreSQL — plus an in-memory cache, per-user rate limiting and role-based access (regular users vs. admins) for aggregate stats and user management.
+Weather API Aggregator queries a primary weather provider (OpenWeatherMap) and falls back automatically to a secondary one (Open-Meteo) if the first is down, each call protected by a Resilience4j circuit breaker and retry with exponential backoff. On top of that sits a full per-user layer — JWT authentication with refresh tokens, search history, favorite cities and unit preferences backed by PostgreSQL — plus an in-memory cache, per-user rate limiting and role-based access (regular users vs. admins) for aggregate stats and user management.
 
 ## 📦 What's Inside
 
 - 🔎 Current weather lookup by city, with unit normalization (Celsius/km-h or Fahrenheit/mph)
-- 📈 Hourly and daily forecast lookup by city (Open-Meteo), cached the same way as current weather
+- 📈 Hourly and daily forecast lookup by city (Open-Meteo, with OpenWeatherMap's 5-day forecast as fallback), cached the same way as current weather
 - 🔤 City search/autocomplete endpoint (Open-Meteo geocoding), for typeahead search boxes in the clients
 - 🧩 Providers decoupled behind a Strategy/Adapter interface — swapping or adding a provider never touches the controller or the API contract
-- 🔁 **Automatic fallback between providers** (Open-Meteo → OpenWeatherMap): if the primary fails, the request is served by the secondary one transparently
+- 🔁 **Automatic fallback between providers** (OpenWeatherMap → Open-Meteo): if the primary fails, the request is served by the secondary one transparently
 - ⚡ **Circuit breaker + retry with exponential backoff** (Resilience4j) per provider — a provider that's systematically failing stops being called for a few seconds instead of piling up load, and transient errors are retried before giving up on that provider
 - 🌡️ Unit normalization across providers — OpenWeatherMap natively returns Kelvin and m/s; the conversion to Celsius/Fahrenheit and km/h/mph happens in the application, never on the provider's side
 - ⚡ In-memory cache (Caffeine), configurable TTL, with an explicit `fromCache` flag showing whether a response came from cache
@@ -73,7 +73,7 @@ weather-api/
 
 - **Strategy/Adapter for providers**: `WeatherProvider` is the only contract the rest of the app knows about. Open-Meteo and OpenWeatherMap each normalize their own response shape into the same `WeatherData`, so adding a third provider later is additive, not a rewrite.
 - **Caffeine over Redis**: for a single-instance API, an in-memory cache is enough and avoids standing up extra infrastructure. Redis is the natural next step once the app runs on more than one instance and needs a shared cache.
-- **Open-Meteo as the primary provider**: free, no API key required, so the project runs out of the box with zero setup friction. OpenWeatherMap is the secondary/fallback provider, which does need a free API key (see *How to Run*).
+- **OpenWeatherMap as the primary provider**: it uses a registered API key with a quota dedicated to this app. Open-Meteo's key-less free tier shares its daily quota with every app on the same egress IP, and on a shared free-tier host that quota ran out from other people's traffic. Open-Meteo stays as the fallback, so the project still runs out of the box without any key (see *How to Run*).
 - **Resilience4j circuit breaker + retry, not a hand-rolled fallback loop**: each provider gets its own breaker and retry policy configured declaratively in `application.yml`, so a systematically failing provider is skipped instead of retried forever, while transient errors (a single dropped request) still get absorbed before falling back.
 - **PostgreSQL + Flyway over JPA auto-DDL**: `ddl-auto: validate` plus a versioned migration means the schema is explicit and reviewable, not implicitly inferred from entity annotations.
 - **Stateless JWT over sessions**: no server-side session store to scale, and CSRF protection is correctly disabled for this reason — it protects cookie-based sessions, which this API doesn't use.
@@ -89,7 +89,7 @@ POST /api/v1/auth/logout                   — revoke a refresh token
 
 GET  /api/v1/weather?city=&units=          — current weather, with automatic fallback (anonymous or authenticated; searches are only recorded to history when called with a token)
 GET  /api/v1/weather/nearby?lat=&lon=      — current weather for the caller's GPS coordinates, reverse-geocoded to a city (anonymous or authenticated)
-GET  /api/v1/weather/forecast?city=&units= — hourly + daily forecast (Open-Meteo only, cached) (anonymous or authenticated)
+GET  /api/v1/weather/forecast?city=&units= — hourly + daily forecast (Open-Meteo, OpenWeatherMap fallback, cached) (anonymous or authenticated)
 GET  /api/v1/weather/marine?city=&units=   — sea conditions (water temp, wave height/direction/period) for a coastal city (anonymous or authenticated)
 GET  /api/v1/weather/insights?city=&units= — derived insights: moon phase, UV risk, outdoor-activity score, fishing conditions (anonymous or authenticated)
 GET  /api/v1/weather/history               — search history (authenticated)
@@ -146,9 +146,9 @@ createdb weather_api -O weather_api
 mvn spring-boot:run
 ```
 
-The database connection, JWT secret/expiration, rate limits and the OpenWeatherMap API key are all configurable via environment variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `RATE_LIMIT_REQUESTS_PER_MINUTE`, `RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE`, `RATE_LIMIT_UNAUTHENTICATED_REQUESTS_PER_MINUTE`, `OPENWEATHERMAP_API_KEY`, `SWAGGER_ENABLED`) — the values in `application.yml` are local-development defaults only and must be overridden in any real deployment. `JWT_SECRET` has no default and must always be set; every other variable falls back to a sensible local default if left unset.
+The database connection, JWT secret/expiration, rate limits and the OpenWeatherMap API key are all configurable via environment variables (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MINUTES`, `JWT_REFRESH_EXPIRATION_DAYS`, `RATE_LIMIT_REQUESTS_PER_MINUTE`, `RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE`, `RATE_LIMIT_UNAUTHENTICATED_REQUESTS_PER_MINUTE`, `OPENWEATHERMAP_API_KEY`, `SWAGGER_ENABLED`, `ADMIN_EMAIL`, `GOOGLE_OAUTH_CLIENT_IDS`, `APPLE_OAUTH_CLIENT_IDS`, `MICROSOFT_OAUTH_CLIENT_IDS`) — the values in `application.yml` are local-development defaults only and must be overridden in any real deployment. `JWT_SECRET` has no default and must always be set; every other variable falls back to a sensible local default if left unset.
 
-Without `OPENWEATHERMAP_API_KEY` set, the second provider fails with `401` on every real call — that's expected, not a bug: the app keeps working normally because fallback always lands on Open-Meteo. To exercise the second provider for real, grab a [free OpenWeatherMap key](https://openweathermap.org/api) and export it as `OPENWEATHERMAP_API_KEY`.
+Without `OPENWEATHERMAP_API_KEY` set, the primary provider fails with `401` on every real call. That's expected, not a bug: the app keeps working normally because fallback always lands on Open-Meteo. To use OpenWeatherMap for real, grab a [free OpenWeatherMap key](https://openweathermap.org/api) and export it as `OPENWEATHERMAP_API_KEY`.
 
 The API is available at `http://localhost:8080`, with Swagger documentation at `http://localhost:8080/swagger-ui/index.html`.
 
@@ -162,10 +162,10 @@ Repository tests and the end-to-end security/fallback tests run against a real P
 
 ## 📝 Notes
 
-- Swagger UI / OpenAPI docs (`/swagger-ui.html`, `/v3/api-docs`) are on by default (`SWAGGER_ENABLED` unset or `true`) but disabled on the live Railway deployment (`SWAGGER_ENABLED=false`) — the routes it documents don't leak anything on their own, but publishing the full endpoint map to anyone unauthenticated isn't worth it on a real deployment; run the app locally to browse it interactively.
-- Open-Meteo's geocoding picks the most relevant result by name; ambiguous city names can return the wrong location (no country/coordinate disambiguation yet).
+- Swagger UI / OpenAPI docs (`/swagger-ui.html`, `/v3/api-docs`) are on by default (`SWAGGER_ENABLED` unset or `true`) but disabled on the live Render deployment (`SWAGGER_ENABLED=false`) — the routes it documents don't leak anything on their own, but publishing the full endpoint map to anyone unauthenticated isn't worth it on a real deployment; run the app locally to browse it interactively.
+- Same-named cities are disambiguated by country: the clients send "City, Country" and the API geocodes that pair to exact coordinates before looking up the weather. A bare city name, or a country that matches no candidate, still resolves to the provider's most relevant match.
 - Rate limiting, circuit breaker state and cached data are all in-memory and per instance (Caffeine); none of it is shared across multiple application instances yet.
-- Forecast is Open-Meteo-only — OpenWeatherMap has no forecast call wired up in this codebase, so there's no fallback for `/weather/forecast` (a provider outage there surfaces as `502`, unlike `/weather`, which falls back to the secondary provider).
+- The database pool is allowed to drain to zero idle connections (`spring.datasource.hikari.minimum-idle: 0`), so a serverless Postgres such as Neon can suspend between requests instead of burning its compute quota.
 
 ## 📄 License
 

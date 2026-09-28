@@ -96,7 +96,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     /**
      * Each proxy hop appends its own observed peer address to {@code X-Forwarded-For} rather
      * than replacing it, so the left end of the list is whatever the client claimed and the
-     * right end is what our own reverse proxy (Railway's edge) actually saw -- the only part of
+     * right end is what our own reverse proxy (the hosting platform's edge) actually saw -- the only part of
      * the header a client can't spoof away. A client sending a fabricated value only appends a
      * fake entry in front of what the proxy adds; taking the last entry ignores that entirely,
      * closing the "rotate this header per request to dodge the rate limit" bypass.
