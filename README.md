@@ -100,6 +100,7 @@ POST /api/v1/weather/favorites             — add a favorite (authenticated)
 DELETE /api/v1/weather/favorites?city=     — remove a favorite (authenticated)
 
 GET  /api/v1/geocoding?query=&limit=       — city search/autocomplete (Open-Meteo geocoding, cached)
+GET  /api/v1/health                        — 200 when the API and its database are up, 503 when the database is unreachable (public)
 
 GET  /api/v1/user/me                       — the authenticated user's profile, including role
 GET  /api/v1/user/preferences              — get preferences
@@ -166,6 +167,7 @@ Repository tests and the end-to-end security/fallback tests run against a real P
 - Same-named cities are disambiguated by country: the clients send "City, Country" and the API geocodes that pair to exact coordinates before looking up the weather. A bare city name, or a country that matches no candidate, still resolves to the provider's most relevant match.
 - Rate limiting, circuit breaker state and cached data are all in-memory and per instance (Caffeine); none of it is shared across multiple application instances yet.
 - A database outage only takes down what needs the database: the app still starts (Flyway is skipped until the database is reachable again), weather lookups keep working with or without a token, and accounts/history/favorites answer `503 DATABASE_UNAVAILABLE` instead of a `401` that would end the clients' sessions. Covered by `DatabaseOutageIntegrationTest`.
+- A daily GitHub Actions workflow (`.github/workflows/health-check.yml`) probes `/api/v1/health` on the live deployment, opens an issue assigned to the owner while it fails and closes it once it passes again, so an outage doesn't go unnoticed.
 - The database pool is allowed to drain to zero idle connections (`spring.datasource.hikari.minimum-idle: 0`), so a serverless Postgres such as Neon can suspend between requests instead of burning its compute quota.
 
 ## 📄 License

@@ -1,0 +1,64 @@
+name: Health check
+
+# Daily probe of the live API. While it's down (or its database is), an issue stays open and
+# assigned to the owner, which GitHub emails about; the issue closes itself once it's back.
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  actions: write
+
+env:
+  HEALTH_URL: https://weatherapi-4r5x.onrender.com/api/v1/health
+  LABEL: health-check
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe the live API
+        id: probe
+        run: |
+          # Render's free tier sleeps when idle and can take a few minutes to wake up, so a
+          # single failed attempt isn't an outage.
+          code=000
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl -s -m 120 -o "$RUNNER_TEMP/body" -w '%{http_code}' "$HEALTH_URL" || true)
+            [ "$code" = "200" ] && break
+            sleep 30
+          done
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "HTTP $code: $(head -c 300 "$RUNNER_TEMP/body" 2>/dev/null)"
+
+      - name: Open or update the outage issue
+        if: steps.probe.outputs.code != '200'
+        run: |
+          body=$(printf 'The daily health check failed.\n\n- URL: %s\n- HTTP status: %s\n- Response: `%s`\n- Run: %s\n\n`000` means no response at all (the service is down or failed to start, check the Render events and logs). `503` with `"database":"DOWN"` means the API is up but the database is unreachable, e.g. the Neon free-tier compute quota ran out: weather lookups still work, accounts/history/favorites come back when the quota renews on the 1st of the month.' \
+            "$HEALTH_URL" "${{ steps.probe.outputs.code }}" "$(head -c 300 "$RUNNER_TEMP/body" 2>/dev/null | tr -d '`')" \
+            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+          open_issue=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number')
+          if [ -n "$open_issue" ]; then
+            gh issue comment "$open_issue" --body "$body"
+          else
+            gh label create "$LABEL" --color d73a4a --description "Opened and closed by the health-check workflow" --force
+            gh issue create --title "Live API health check failing" --label "$LABEL" \
+              --assignee "${{ github.repository_owner }}" --body "$body"
+          fi
+
+      - name: Close the outage issue once it's back
+        if: steps.probe.outputs.code == '200'
+        run: |
+          for issue in $(gh issue list --label "$LABEL" --state open --json number --jq '.[].number'); do
+            gh issue close "$issue" --comment "Health check is passing again."
+          done
+
+      - name: Keep the schedule alive
+        if: always()
+        # GitHub disables scheduled workflows after 60 days without repository activity;
+        # re-enabling the workflow through the API resets that timer.
+        run: gh api -X PUT "repos/$GH_REPO/actions/workflows/health-check.yml/enable"

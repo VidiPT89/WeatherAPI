@@ -68,6 +68,13 @@ class AuthAndSecurityIntegrationTest {
     }
 
     @Test
+    void healthIsPublicAndReportsTheDatabaseAsUp() throws Exception {
+        mockMvc.perform(get("/api/v1/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.database").value("UP"));
+    }
+
+    @Test
     void historyEndpointRejectsRequestsWithoutAToken() throws Exception {
         mockMvc.perform(get("/api/v1/weather/history"))
                 .andExpect(status().isUnauthorized());

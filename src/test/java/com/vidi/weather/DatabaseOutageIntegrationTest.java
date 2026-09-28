@@ -87,6 +87,13 @@ class DatabaseOutageIntegrationTest {
     }
 
     @Test
+    void healthReportsTheDatabaseAsDown() throws Exception {
+        mockMvc.perform(get("/api/v1/health"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.database").value("DOWN"));
+    }
+
+    @Test
     void loginAnswers503_notInvalidCredentials() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
