@@ -8,6 +8,13 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/weather_api}
     username: ${DB_USERNAME:weather_api}
     password: ${DB_PASSWORD:weather_api_local_dev}
+    # Don't keep idle connections open: Neon's free tier bills compute while any connection
+    # is open, so a permanently warm pool (Hikari's default minimum-idle is 10) never lets the
+    # database scale to zero and burns the monthly compute quota.
+    hikari:
+      minimum-idle: 0
+      maximum-pool-size: 5
+      idle-timeout: 60000
   jpa:
     open-in-view: false
     hibernate:
