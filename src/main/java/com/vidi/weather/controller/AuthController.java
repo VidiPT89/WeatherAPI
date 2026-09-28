@@ -15,12 +15,15 @@ import com.vidi.weather.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -65,6 +68,13 @@ public class AuthController {
         try {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        } catch (InternalAuthenticationServiceException ex) {
+            // Spring Security wraps a failure to load the user in this, so a database outage would
+            // otherwise read as "wrong password". Rethrown as-is so it maps to 503 instead.
+            if (ex.getCause() instanceof DataAccessException || ex.getCause() instanceof TransactionException) {
+                throw (RuntimeException) ex.getCause();
+            }
+            throw new InvalidCredentialsException();
         } catch (AuthenticationException ex) {
             throw new InvalidCredentialsException();
         }

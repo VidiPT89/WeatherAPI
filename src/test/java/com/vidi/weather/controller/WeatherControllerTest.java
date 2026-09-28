@@ -41,6 +41,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 @WebMvcTest(WeatherController.class)
 class WeatherControllerTest {
@@ -77,6 +78,18 @@ class WeatherControllerTest {
 
     private final WeatherData sampleData = new WeatherData(
             "Lisboa", "Portugal", 22.5, 21.8, 65, 12.3, "Clear sky", Units.METRIC, "open-meteo", Instant.now());
+
+    @Test
+    void stillReturnsTheWeather_whenRecordingTheSearchToHistoryFailsBecauseTheDatabaseIsDown() throws Exception {
+        when(weatherAggregatorService.getCurrentWeather(eq("Lisboa"), eq(Units.METRIC)))
+                .thenReturn(new WeatherResult(sampleData, false));
+        org.mockito.Mockito.doThrow(new CannotCreateTransactionException("Could not open JPA EntityManager"))
+                .when(searchHistoryService).record(any(), eq("Lisboa"), eq(Units.METRIC));
+
+        mockMvc.perform(get("/api/v1/weather").param("city", "Lisboa").with(user(authenticatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Lisboa"));
+    }
 
     @Test
     void returns200WithNormalizedWeather_whenCityIsValid() throws Exception {

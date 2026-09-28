@@ -3,6 +3,11 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/weather_api_test}
     username: ${DB_USERNAME:weather_api}
     password: ${DB_PASSWORD:weather_api_local_dev}
+  jpa:
+    hibernate:
+      # Production skips startup schema validation so it can boot without a database (see
+      # application.yml); the tests always have one, so they keep entities and migrations honest.
+      ddl-auto: validate
 
 # Test-only signing key -- never used outside the `test` profile, so it being
 # public is not a concern the way a checked-in production default would be.

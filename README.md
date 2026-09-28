@@ -165,6 +165,7 @@ Repository tests and the end-to-end security/fallback tests run against a real P
 - Swagger UI / OpenAPI docs (`/swagger-ui.html`, `/v3/api-docs`) are on by default (`SWAGGER_ENABLED` unset or `true`) but disabled on the live Render deployment (`SWAGGER_ENABLED=false`) — the routes it documents don't leak anything on their own, but publishing the full endpoint map to anyone unauthenticated isn't worth it on a real deployment; run the app locally to browse it interactively.
 - Same-named cities are disambiguated by country: the clients send "City, Country" and the API geocodes that pair to exact coordinates before looking up the weather. A bare city name, or a country that matches no candidate, still resolves to the provider's most relevant match.
 - Rate limiting, circuit breaker state and cached data are all in-memory and per instance (Caffeine); none of it is shared across multiple application instances yet.
+- A database outage only takes down what needs the database: the app still starts (Flyway is skipped until the database is reachable again), weather lookups keep working with or without a token, and accounts/history/favorites answer `503 DATABASE_UNAVAILABLE` instead of a `401` that would end the clients' sessions. Covered by `DatabaseOutageIntegrationTest`.
 - The database pool is allowed to drain to zero idle connections (`spring.datasource.hikari.minimum-idle: 0`), so a serverless Postgres such as Neon can suspend between requests instead of burning its compute quota.
 
 ## 📄 License

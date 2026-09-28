@@ -27,9 +27,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,6 +47,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/weather")
 @Tag(name = "Weather", description = "Current weather, search history and favorites")
 public class WeatherController {
+
+    private static final Logger log = LoggerFactory.getLogger(WeatherController.class);
 
     private final WeatherAggregatorService weatherAggregatorService;
     private final ForecastService forecastService;
@@ -87,9 +93,7 @@ public class WeatherController {
                 .map(resolved -> weatherAggregatorService.getCurrentWeatherByCoordinates(
                         resolved.latitude(), resolved.longitude(), resolved.name(), parsedUnits))
                 .orElseGet(() -> weatherAggregatorService.getCurrentWeather(city, parsedUnits));
-        if (principal != null) {
-            searchHistoryService.record(principal.getUser(), city, parsedUnits);
-        }
+        recordHistory(principal, city, parsedUnits);
         return ResponseEntity.ok(WeatherResponse.from(result));
     }
 
@@ -184,10 +188,23 @@ public class WeatherController {
 
         WeatherResult result = weatherAggregatorService.getCurrentWeatherByCoordinates(
                 location.latitude(), location.longitude(), location.name(), parsedUnits);
-        if (principal != null) {
-            searchHistoryService.record(principal.getUser(), location.name(), parsedUnits);
-        }
+        recordHistory(principal, location.name(), parsedUnits);
         return ResponseEntity.ok(WeatherResponse.from(result));
+    }
+
+    /**
+     * Best-effort: the weather has already been fetched, so a database outage while saving the
+     * search to history must not turn a successful lookup into an error.
+     */
+    private void recordHistory(AuthenticatedUser principal, String city, Units units) {
+        if (principal == null) {
+            return;
+        }
+        try {
+            searchHistoryService.record(principal.getUser(), city, units);
+        } catch (DataAccessException | TransactionException databaseUnavailable) {
+            log.warn("Could not record search history, database unavailable: {}", databaseUnavailable.getMessage());
+        }
     }
 
     private static Units resolveUnits(String units, AuthenticatedUser principal) {

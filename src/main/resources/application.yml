@@ -15,13 +15,24 @@ spring:
       minimum-idle: 0
       maximum-pool-size: 5
       idle-timeout: 60000
+      # The database only backs accounts, history and favorites -- weather lookups don't need it.
+      # So the app must start and keep serving weather while the database is unreachable
+      # (e.g. the free tier's compute quota is exhausted): don't fail startup on the pool's first
+      # connection, and give up on a dead database quickly instead of Hikari's default 30s.
+      initialization-fail-timeout: -1
+      connection-timeout: 10000
   jpa:
     open-in-view: false
+    # Set explicitly so Hibernate doesn't open a connection at startup just to detect it.
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: validate
+      # Flyway owns the schema. Startup validation would need a live connection, so it's done in
+      # the test profile instead (see src/test/resources/application-test.yml).
+      ddl-auto: none
     properties:
       hibernate:
         format_sql: true
+        boot.allow_jdbc_metadata_access: false
   flyway:
     enabled: true
     locations: classpath:db/migration
