@@ -36,7 +36,7 @@ public class UserService {
         // Same exists-check-then-save gap as FavoriteService.add: the DB's unique constraint on
         // email is the real backstop for two concurrent registrations of the same address.
         try {
-            User user = new User(email, passwordEncoder.encode(rawPassword), Units.METRIC).withRole(roleFor(email));
+            User user = new User(email, passwordEncoder.encode(rawPassword), Units.METRIC);
             return userRepository.save(user);
         } catch (DataIntegrityViolationException alreadyExists) {
             throw new EmailAlreadyRegisteredException(email);
@@ -47,9 +47,8 @@ public class UserService {
      * Resolves the {@link User} for a verified OAuth identity: an existing link by
      * {@code (provider, providerId)} wins outright; otherwise a LOCAL/other-provider account with
      * the same (provider-verified) email gets this identity linked onto it; otherwise a brand new
-     * account is created. An unverified email can never link to or create an account -- a
-     * provider that hasn't confirmed the address isn't a safe enough basis to claim someone
-     * else's account.
+     * account is created. Microsoft identities can create a regular account using their signed
+     * subject, but their email claim never authorizes linking or administrative privileges.
      */
     public User findOrCreateFromOAuth(OAuthProvider provider, String providerId, String email, boolean emailVerified) {
         Optional<User> existingLink = userRepository.findByProviderAndProviderId(provider, providerId);
@@ -57,17 +56,22 @@ public class UserService {
             return existingLink.get();
         }
 
-        if (!emailVerified) {
+        boolean trustedEmail = emailVerified && provider != OAuthProvider.MICROSOFT;
+        if (!trustedEmail && provider != OAuthProvider.MICROSOFT) {
             throw new OAuthTokenInvalidException(provider);
         }
 
         Optional<User> byEmail = userRepository.findByEmail(email);
         if (byEmail.isPresent()) {
+            if (!trustedEmail) {
+                throw new OAuthTokenInvalidException(provider);
+            }
             return userRepository.save(byEmail.get().withOAuthLink(provider, providerId));
         }
 
         try {
-            User user = User.oauth(email, provider, providerId, Units.METRIC).withRole(roleFor(email));
+            User user = User.oauth(email, provider, providerId, Units.METRIC)
+                    .withRole(trustedEmail ? roleFor(email) : Role.USER);
             return userRepository.save(user);
         } catch (DataIntegrityViolationException raced) {
             // Two sign-ins with the same brand-new OAuth identity raced past the check above --

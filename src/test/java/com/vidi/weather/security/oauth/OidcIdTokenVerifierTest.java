@@ -83,8 +83,8 @@ class OidcIdTokenVerifierTest {
     }
 
     @Test
-    void treatsAMissingEmailVerifiedClaimAsVerified() throws JOSEException {
-        // Apple omits email_verified entirely for accounts it already verified at sign-up.
+    void doesNotTreatAMissingEmailVerifiedClaimAsProofOfOwnership() throws JOSEException {
+        // A signed identity alone does not prove ownership of the email claim.
         Date now = new Date();
         JWTClaimsSet.Builder claimsWithoutFlag = new JWTClaimsSet.Builder()
                 .issuer(ISSUER)
@@ -97,7 +97,7 @@ class OidcIdTokenVerifierTest {
 
         OidcIdTokenVerifier.VerifiedIdentity identity = verifier.verify(OAuthProvider.GOOGLE, token);
 
-        assertThat(identity.emailVerified()).isTrue();
+        assertThat(identity.emailVerified()).isFalse();
     }
 
     @Test

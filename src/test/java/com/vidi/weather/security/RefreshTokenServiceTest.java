@@ -88,15 +88,13 @@ class RefreshTokenServiceTest {
     }
 
     @Test
-    void rotatingATokenThatWasAlreadyRotatedWithinTheGraceWindowStillSucceeds() {
-        stubSaveReturningSameEntityWithId();
+    void rejectsAGraceWindowReplayWhenTheOriginalChildIsNoLongerCached() {
         RefreshToken alreadyRotated = activeToken().revokedBy(42L);
         when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(alreadyRotated));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-        RefreshTokenService.RotationResult result = refreshTokenService.rotate("recently-rotated");
-
-        assertThat(result.refreshToken()).isNotBlank();
+        assertThatThrownBy(() -> refreshTokenService.rotate("recently-rotated"))
+                .isInstanceOf(InvalidRefreshTokenException.class);
+        verify(refreshTokenRepository, never()).save(any());
     }
 
     @Test
@@ -117,6 +115,7 @@ class RefreshTokenServiceTest {
         RefreshToken nowRevoked = original.revokedBy(999L);
         when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(nowRevoked));
 
+        when(refreshTokenRepository.findById(999L)).thenReturn(Optional.of(activeToken()));
         RefreshTokenService.RotationResult second = refreshTokenService.rotate("raw-token");
 
         assertThat(second.refreshToken()).isEqualTo(first.refreshToken());
@@ -183,6 +182,21 @@ class RefreshTokenServiceTest {
         refreshTokenService.revoke("already-revoked");
 
         verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void cachedRotationCannotRestoreASessionAfterTheChildWasLoggedOut() {
+        stubSaveReturningSameEntityWithId();
+        RefreshToken original = activeToken();
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(original));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        refreshTokenService.rotate("raw-token");
+
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(original.revokedBy(999L)));
+        when(refreshTokenRepository.findById(999L)).thenReturn(Optional.of(activeToken().revokedBy(null)));
+        assertThatThrownBy(() -> refreshTokenService.rotate("raw-token"))
+                .isInstanceOf(InvalidRefreshTokenException.class);
+        verify(refreshTokenRepository, org.mockito.Mockito.times(2)).save(any());
     }
 
     private RefreshToken activeToken() {

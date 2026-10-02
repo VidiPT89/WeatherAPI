@@ -11,6 +11,9 @@ import static org.mockito.Mockito.when;
 import com.vidi.weather.entity.User;
 import com.vidi.weather.exception.EmailAlreadyRegisteredException;
 import com.vidi.weather.model.Units;
+import com.vidi.weather.model.Role;
+import com.vidi.weather.model.OAuthProvider;
+import com.vidi.weather.exception.OAuthTokenInvalidException;
 import com.vidi.weather.repository.UserRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -88,4 +91,49 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.findByEmail("missing@example.com"))
                 .isInstanceOf(IllegalStateException.class);
     }
+    @Test
+    void localRegistrationCannotClaimAdminByEnteringTheAdminEmail() {
+        var service = new UserService(userRepository, passwordEncoder, "admin@example.com");
+        when(passwordEncoder.encode("password123")).thenReturn("hash");
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        assertThat(service.register("admin@example.com", "password123").getRole()).isEqualTo(Role.USER);
+    }
+
+    @Test
+    void microsoftEmailCannotLinkAnExistingAccount() {
+        when(userRepository.findByEmail("owner@example.com"))
+                .thenReturn(Optional.of(new User("owner@example.com", "hash", Units.METRIC)));
+        assertThatThrownBy(() -> userService.findOrCreateFromOAuth(
+                OAuthProvider.MICROSOFT, "different-subject", "owner@example.com", true))
+                .isInstanceOf(OAuthTokenInvalidException.class);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void newMicrosoftIdentityGetsAnOrdinaryAccountEvenWithTheAdminEmail() {
+        var service = new UserService(userRepository, passwordEncoder, "admin@example.com");
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        User result = service.findOrCreateFromOAuth(OAuthProvider.MICROSOFT, "subject", "admin@example.com", false);
+        assertThat(result.getRole()).isEqualTo(Role.USER);
+        assertThat(result.getProviderId()).isEqualTo("subject");
+    }
+
+    @Test
+    void existingMicrosoftIdentityStillSignsInByItsSubject() {
+        var account = User.oauth("original@example.com", OAuthProvider.MICROSOFT, "subject", Units.METRIC);
+        when(userRepository.findByProviderAndProviderId(OAuthProvider.MICROSOFT, "subject"))
+                .thenReturn(Optional.of(account));
+        assertThat(userService.findOrCreateFromOAuth(OAuthProvider.MICROSOFT, "subject", "changed@example.com", false))
+                .isSameAs(account);
+        verify(userRepository, never()).findByEmail(any());
+    }
+
+    @Test
+    void googleWithoutVerifiedEmailCannotCreateOrLinkAnAccount() {
+        assertThatThrownBy(() -> userService.findOrCreateFromOAuth(
+                OAuthProvider.GOOGLE, "subject", "owner@example.com", false))
+                .isInstanceOf(OAuthTokenInvalidException.class);
+        verify(userRepository, never()).save(any());
+    }
+
 }

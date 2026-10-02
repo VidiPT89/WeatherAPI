@@ -187,7 +187,7 @@ public class WeatherController {
                 .orElseThrow(() -> new CityNotFoundException("coordinates %.4f,%.4f".formatted(lat, lon)));
 
         WeatherResult result = weatherAggregatorService.getCurrentWeatherByCoordinates(
-                location.latitude(), location.longitude(), location.name(), parsedUnits);
+                lat, lon, location.name(), parsedUnits);
         recordHistory(principal, location.name(), parsedUnits);
         return ResponseEntity.ok(WeatherResponse.from(result));
     }

@@ -161,7 +161,7 @@ class WeatherControllerTest {
     @Test
     void returns200WithNearbyWeather_whenCoordinatesResolveToACity() throws Exception {
         when(geocodingService.reverseGeocode(38.7167, -9.1333))
-                .thenReturn(java.util.Optional.of(new GeocodingResult("Lisboa", "Portugal", 38.7167, -9.1333)));
+                .thenReturn(java.util.Optional.of(new GeocodingResult("Lisboa", "Portugal", 38.72, -9.14)));
         when(weatherAggregatorService.getCurrentWeatherByCoordinates(eq(38.7167), eq(-9.1333), eq("Lisboa"), eq(Units.METRIC)))
                 .thenReturn(new WeatherResult(sampleData, false));
 

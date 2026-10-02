@@ -90,9 +90,8 @@ resilience4j:
         retry-exceptions:
           - com.vidi.weather.exception.ProviderUnavailableException
 
-# Sole account promoted to ADMIN on creation (UserService) -- see V6__add_oauth_login.sql for
-# accounts that predate this. A default is safe here (unlike JWT_SECRET): it's not a secret, and
-# an unset env var in a real deployment would just mean nobody is admin, not a security hole.
+# Only a provider-verified Google/Apple identity can receive ADMIN on account creation.
+# Local registrations and Microsoft email claims never grant administrative privileges.
 admin:
   email: ${ADMIN_EMAIL:ividi.dev@gmail.com}
 

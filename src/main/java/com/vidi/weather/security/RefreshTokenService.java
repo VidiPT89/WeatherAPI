@@ -99,8 +99,14 @@ public class RefreshTokenService {
             // instead of creating a second, untracked child. See recentRotations' doc comment.
             RotationResult cached = recentRotations.getIfPresent(current.getId());
             if (cached != null) {
-                return cached;
+                RefreshToken child = refreshTokenRepository.findById(current.getReplacedBy()).orElse(null);
+                if (child != null && !child.isRevoked() && !child.isExpired()) {
+                    return cached;
+                }
             }
+            // A restart/eviction loses the raw child token. Minting another here would leave
+            // it outside the persisted revocation chain; require a fresh login instead.
+            throw new InvalidRefreshTokenException();
         }
 
         User user = userRepository.findById(current.getUserId())
@@ -109,16 +115,13 @@ public class RefreshTokenService {
         String newRaw = generateRawToken();
         RefreshToken next = refreshTokenRepository.save(
                 new RefreshToken(user.getId(), hash(newRaw), newExpiry()));
-        if (!current.isRevoked()) {
-            refreshTokenRepository.save(current.revokedBy(next.getId()));
-            RotationResult result = new RotationResult(user, newRaw);
-            recentRotations.put(current.getId(), result);
-            return result;
-        }
-
-        return new RotationResult(user, newRaw);
+        refreshTokenRepository.save(current.revokedBy(next.getId()));
+        RotationResult result = new RotationResult(user, newRaw);
+        recentRotations.put(current.getId(), result);
+        return result;
     }
 
+    @Transactional
     public void revoke(String rawToken) {
         refreshTokenRepository.findByTokenHash(hash(rawToken))
                 .filter(token -> !token.isRevoked())

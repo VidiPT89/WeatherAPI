@@ -163,6 +163,11 @@ Repository tests and the end-to-end security/fallback tests run against a real P
 
 ## 📝 Notes
 
+- Social login requires configured client IDs for each enabled provider. Empty `GOOGLE_OAUTH_CLIENT_IDS`, `APPLE_OAUTH_CLIENT_IDS` or `MICROSOFT_OAUTH_CLIENT_IDS` disable that provider instead of accepting tokens issued to unrelated applications. This enforces [OpenID Connect audience validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation).
+- Local registration always creates a regular user. Automatic admin assignment requires a verified Google/Apple email. Microsoft accounts are identified by their provider subject; matching email addresses alone never link an existing account or grant admin access, following [Microsoft's claim guidance](https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference). Existing explicit account links continue to work.
+- Refresh-token rotation locks the original row while issuing its successor. A replay within the grace window reuses only the cached, still-active successor; if that cache was lost or the successor was revoked, sign-in is required again.
+
+
 - Swagger UI / OpenAPI docs (`/swagger-ui.html`, `/v3/api-docs`) are on by default (`SWAGGER_ENABLED` unset or `true`) but disabled on the live Render deployment (`SWAGGER_ENABLED=false`) — the routes it documents don't leak anything on their own, but publishing the full endpoint map to anyone unauthenticated isn't worth it on a real deployment; run the app locally to browse it interactively.
 - Same-named cities are disambiguated by country: the clients send "City, Country" and the API geocodes that pair to exact coordinates before looking up the weather. A bare city name, or a country that matches no candidate, still resolves to the provider's most relevant match.
 - Rate limiting, circuit breaker state and cached data are all in-memory and per instance (Caffeine); none of it is shared across multiple application instances yet.

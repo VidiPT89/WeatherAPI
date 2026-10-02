@@ -81,6 +81,10 @@ public class OidcIdTokenVerifier {
      *     audience doesn't match a configured client id, or the provider's email isn't verified
      */
     public VerifiedIdentity verify(OAuthProvider provider, String idToken) {
+        List<String> expectedAudiences = clientIdsByProvider.get(provider);
+        if (expectedAudiences == null || expectedAudiences.isEmpty()) {
+            throw new OAuthTokenInvalidException(provider);
+        }
         try {
             SignedJWT signedJWT = SignedJWT.parse(idToken);
             JWTClaimsSet claims = processors.get(provider).process(signedJWT, null);
@@ -90,9 +94,7 @@ public class OidcIdTokenVerifier {
                 throw new OAuthTokenInvalidException(provider);
             }
 
-            List<String> expectedAudiences = clientIdsByProvider.get(provider);
-            boolean audienceOk = expectedAudiences.isEmpty()
-                    || claims.getAudience().stream().anyMatch(expectedAudiences::contains);
+            boolean audienceOk = claims.getAudience().stream().anyMatch(expectedAudiences::contains);
             if (!audienceOk) {
                 throw new OAuthTokenInvalidException(provider);
             }
@@ -104,10 +106,10 @@ public class OidcIdTokenVerifier {
             }
 
             Object emailVerifiedClaim = claims.getClaim("email_verified");
-            // Apple omits this claim entirely for accounts it already verified at sign-up --
-            // absence isn't "unverified", only an explicit false is.
-            boolean emailVerified = !Boolean.FALSE.equals(emailVerifiedClaim)
-                    && !"false".equals(String.valueOf(emailVerifiedClaim));
+            // Missing verification is not proof of email ownership. Microsoft email claims
+            // are not used for linking or authorization even if a tenant adds this flag.
+            boolean emailVerified = provider != OAuthProvider.MICROSOFT
+                    && (Boolean.TRUE.equals(emailVerifiedClaim) || "true".equals(emailVerifiedClaim));
 
             return new VerifiedIdentity(email, subject, emailVerified);
         } catch (ParseException | BadJOSEException | JOSEException ex) {
