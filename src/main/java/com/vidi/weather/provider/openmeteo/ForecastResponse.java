@@ -5,7 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record ForecastResponse(CurrentWeather current, Hourly hourly, Daily daily) {
+public record ForecastResponse(
+        CurrentWeather current,
+        Hourly hourly,
+        Daily daily,
+        @JsonProperty("utc_offset_seconds") int utcOffsetSeconds
+) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record CurrentWeather(

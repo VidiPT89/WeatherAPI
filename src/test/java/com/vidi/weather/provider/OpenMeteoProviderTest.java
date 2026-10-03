@@ -203,6 +203,7 @@ class OpenMeteoProviderTest {
                 """);
         stubForecastSeries("""
                 {
+                  "utc_offset_seconds": 3600,
                   "hourly": {
                     "time": ["2024-01-01T00:00", "2024-01-01T01:00"],
                     "temperature_2m": [12.5, 11.9],
@@ -226,6 +227,7 @@ class OpenMeteoProviderTest {
 
         assertThat(result.city()).isEqualTo("Lisbon");
         assertThat(result.country()).isEqualTo("Portugal");
+        assertThat(result.utcOffsetSeconds()).isEqualTo(3600);
         assertThat(result.hourly()).hasSize(2);
         assertThat(result.hourly().get(0).time()).isEqualTo(LocalDateTime.parse("2024-01-01T00:00"));
         assertThat(result.hourly().get(0).temperature()).isEqualTo(12.5);

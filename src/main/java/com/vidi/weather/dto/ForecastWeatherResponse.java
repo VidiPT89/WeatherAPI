@@ -10,7 +10,8 @@ public record ForecastWeatherResponse(
         String provider,
         boolean fromCache,
         List<HourlyForecastEntry> hourly,
-        List<DailyForecastEntry> daily
+        List<DailyForecastEntry> daily,
+        int utcOffsetSeconds
 ) {
 
     public static ForecastWeatherResponse from(ForecastResult result) {
@@ -22,7 +23,8 @@ public record ForecastWeatherResponse(
                 data.provider(),
                 result.fromCache(),
                 data.hourly().stream().map(HourlyForecastEntry::from).toList(),
-                data.daily().stream().map(DailyForecastEntry::from).toList()
+                data.daily().stream().map(DailyForecastEntry::from).toList(),
+                data.utcOffsetSeconds()
         );
     }
 }

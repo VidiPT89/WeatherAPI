@@ -87,14 +87,6 @@ public class RefreshToken {
         return userId;
     }
 
-    public String getTokenHash() {
-        return tokenHash;
-    }
-
-    public Instant getExpiresAt() {
-        return expiresAt;
-    }
-
     public Instant getRevokedAt() {
         return revokedAt;
     }

@@ -49,7 +49,7 @@ class WeatherInsightsServiceTest {
         DailyForecast today = new DailyForecast(
                 LocalDate.now(), 24.0, 16.0, "Clear sky", LocalDateTime.now(), LocalDateTime.now(), 4.0, 10,
                 12.0, 0.4, 6.0, false, "Low", "Great", "Good", "Good");
-        ForecastData forecast = new ForecastData("Cascais", "Portugal", Units.METRIC, "open-meteo", List.of(), List.of(today));
+        ForecastData forecast = new ForecastData("Cascais", "Portugal", Units.METRIC, "open-meteo", List.of(), List.of(today), 0);
         MarineData marine = new MarineData("Cascais", "Portugal", Units.METRIC, "open-meteo", 17.0, 0.4, 270.0, 6.0, List.of());
 
         when(weatherAggregatorService.getCurrentWeather(eq("Cascais"), eq(Units.METRIC)))
@@ -76,7 +76,7 @@ class WeatherInsightsServiceTest {
         DailyForecast today = new DailyForecast(
                 LocalDate.now(), 22.0, 12.0, "Clear sky", LocalDateTime.now(), LocalDateTime.now(), 2.0, 5,
                 10.0, null, null, false, "Low", "Great", null, null);
-        ForecastData forecast = new ForecastData("Madrid", "Spain", Units.METRIC, "open-meteo", List.of(), List.of(today));
+        ForecastData forecast = new ForecastData("Madrid", "Spain", Units.METRIC, "open-meteo", List.of(), List.of(today), 0);
         MarineData marine = new MarineData("Madrid", "Spain", Units.METRIC, "open-meteo", null, null, null, null, List.of());
 
         when(weatherAggregatorService.getCurrentWeather(eq("Madrid"), eq(Units.METRIC)))

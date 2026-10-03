@@ -115,7 +115,8 @@ public class OpenMeteoProvider implements WeatherProvider {
                 .mapToObj(i -> buildDailyForecast(dailyResponse, marineResponse, i, units))
                 .toList();
 
-        return new ForecastData(location.name(), location.country(), units, PROVIDER_NAME, hourly, daily);
+        return new ForecastData(location.name(), location.country(), units, PROVIDER_NAME, hourly, daily,
+                response.utcOffsetSeconds());
     }
 
     private DailyForecast buildDailyForecast(ForecastResponse.Daily dailyResponse, MarineResponse marineResponse, int index, Units units) {

@@ -174,6 +174,7 @@ class FallbackIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.provider").value("open-weather-map"))
                 .andExpect(jsonPath("$.country").value("PT"))
+                .andExpect(jsonPath("$.utcOffsetSeconds").value(3600))
                 .andExpect(jsonPath("$.hourly[0].description").value("clear sky"))
                 .andExpect(jsonPath("$.daily[0].description").isNotEmpty());
     }

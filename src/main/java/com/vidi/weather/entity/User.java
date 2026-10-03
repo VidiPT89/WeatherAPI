@@ -105,10 +105,6 @@ public class User {
         return passwordHash;
     }
 
-    public OAuthProvider getProvider() {
-        return provider;
-    }
-
     public String getProviderId() {
         return providerId;
     }

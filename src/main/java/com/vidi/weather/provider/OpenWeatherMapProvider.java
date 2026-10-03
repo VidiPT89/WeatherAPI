@@ -182,7 +182,8 @@ public class OpenWeatherMapProvider implements WeatherProvider {
         List<DailyForecast> daily = new ArrayList<>();
         byDay.forEach((date, entries) -> daily.add(buildDailyForecast(date, entries, sunrise, sunset, zoneOffset, units)));
 
-        return new ForecastData(city, response.city().country(), units, PROVIDER_NAME, hourly, daily);
+        return new ForecastData(city, response.city().country(), units, PROVIDER_NAME, hourly, daily,
+                zoneOffset.getTotalSeconds());
     }
 
     private DailyForecast buildDailyForecast(

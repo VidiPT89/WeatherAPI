@@ -11,7 +11,7 @@ Weather API Aggregator queries a primary weather provider (OpenWeatherMap) and f
 ## 📦 What's Inside
 
 - 🔎 Current weather lookup by city, with unit normalization (Celsius/km-h or Fahrenheit/mph)
-- 📈 Hourly and daily forecast lookup by city (Open-Meteo, with OpenWeatherMap's 5-day forecast as fallback), cached the same way as current weather
+- 📈 Hourly and daily forecast lookup by city (Open-Meteo, with OpenWeatherMap's 5-day forecast as fallback), cached the same way as current weather, plus the city's UTC offset so clients can tell day from night in any time zone
 - 🔤 City search/autocomplete endpoint (Open-Meteo geocoding), for typeahead search boxes in the clients
 - 🧩 Providers decoupled behind a Strategy/Adapter interface — swapping or adding a provider never touches the controller or the API contract
 - 🔁 **Automatic fallback between providers** (OpenWeatherMap → Open-Meteo): if the primary fails, the request is served by the secondary one transparently
@@ -29,7 +29,7 @@ Weather API Aggregator queries a primary weather provider (OpenWeatherMap) and f
 - 🚦 Normalized errors that never leak the raw external provider error: `404` city not found, `502` provider unavailable, `429` quota/rate limit exceeded, `400` invalid input, `401` unauthenticated, `409` conflict (duplicate email/favorite)
 - 🗺️ Weather descriptions translated from Open-Meteo's WMO weather codes (OpenWeatherMap already returns its own description)
 - 📑 Interactive API documentation via Swagger/OpenAPI
-- ✅ Unit, integration (WireMock + a real PostgreSQL instance) and end-to-end tests — including one that forces a real circuit breaker trip — at ~97% line coverage
+- ✅ Unit, integration (WireMock + a real PostgreSQL instance) and end-to-end tests — including one that forces a real circuit breaker trip — at ~93% line coverage
 
 ## 🛠️ Tech Stack
 

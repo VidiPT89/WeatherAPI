@@ -226,7 +226,8 @@ class WeatherControllerTest {
                         java.time.LocalDate.parse("2024-01-01"), 15.0, 8.1, "Mainly clear",
                         java.time.LocalDateTime.parse("2024-01-01T07:45"),
                         java.time.LocalDateTime.parse("2024-01-01T17:30"),
-                        3.5, 20, 12.0, 0.6, 7.0, false, "Moderate", "Good", "Fair", "Fair")));
+                        3.5, 20, 12.0, 0.6, 7.0, false, "Moderate", "Good", "Fair", "Fair")),
+                3600);
         when(forecastService.getForecast(eq("Lisboa"), eq(Units.METRIC)))
                 .thenReturn(new ForecastResult(forecastData, false));
 
@@ -234,7 +235,8 @@ class WeatherControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.city").value("Lisboa"))
                 .andExpect(jsonPath("$.hourly[0].temperature").value(12.5))
-                .andExpect(jsonPath("$.daily[0].temperatureMax").value(15.0));
+                .andExpect(jsonPath("$.daily[0].temperatureMax").value(15.0))
+                .andExpect(jsonPath("$.utcOffsetSeconds").value(3600));
     }
 
     @Test
