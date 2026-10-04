@@ -2,6 +2,8 @@
 
 > A Spring Boot backend API that aggregates weather data from multiple external sources, with automatic fallback, a circuit breaker, JWT authentication and normalized error handling — designed to keep working even when an external source fails.
 
+[![CI](https://github.com/VidiPT89/WeatherAPI/actions/workflows/ci.yml/badge.svg)](https://github.com/VidiPT89/WeatherAPI/actions/workflows/ci.yml)
+
 **Clients built on this API:** [Web (Next.js)](https://github.com/VidiPT89/WeatherApp) ([live](https://weather-app-psi-inky-53.vercel.app)) · [iOS (Swift/SwiftUI)](https://github.com/VidiPT89/WeatherApp-iOS) · [Android (Kotlin/Compose)](https://github.com/VidiPT89/WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
 
 **Live API:** [weatherapi-4r5x.onrender.com](https://weatherapi-4r5x.onrender.com) (Render free tier, so the first request after a quiet period can take up to a minute while the instance wakes up. Swagger UI is disabled on this deployment, see *Notes*; run locally to explore it interactively)
