@@ -6,7 +6,7 @@
 
 **Clients built on this API:** [Web (Next.js)](https://github.com/VidiPT89/WeatherApp) ([live](https://weather-app-psi-inky-53.vercel.app)) · [iOS (Swift/SwiftUI)](https://github.com/VidiPT89/WeatherApp-iOS) · [Android (Kotlin/Compose)](https://github.com/VidiPT89/WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
 
-![The Next.js client on the live API: Lisbon served from the cache, with the fallback provider answering while the primary is down](assets/web-dashboard.jpg)
+![The Next.js client on the live API: current weather for Lisbon, the hourly forecast, sea conditions and today's estimated tides](assets/web-dashboard.jpg)
 
 **Live API:** [weatherapi-4r5x.onrender.com](https://weatherapi-4r5x.onrender.com) (Render free tier, so the first request after a quiet period can take up to a minute while the instance wakes up. Swagger UI is disabled on this deployment, see *Notes*; run locally to explore it interactively)
 
