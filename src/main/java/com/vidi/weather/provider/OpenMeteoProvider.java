@@ -189,7 +189,7 @@ public class OpenMeteoProvider implements WeatherProvider {
                 hasReadings ? firstReading(hourly.waveHeight()) : null,
                 hasReadings ? firstReading(hourly.waveDirection()) : null,
                 hasReadings ? firstReading(hourly.wavePeriod()) : null,
-                hasReadings ? TidePeakDetector.detect(hourly.time(), hourly.seaLevelHeightMsl()) : List.of()
+                hasReadings ? TidePeakDetector.detectToday(hourly.time(), hourly.seaLevelHeightMsl()) : List.of()
         );
     }
 

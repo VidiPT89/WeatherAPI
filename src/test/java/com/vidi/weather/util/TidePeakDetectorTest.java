@@ -61,4 +61,21 @@ class TidePeakDetectorTest {
 
         assertThat(TidePeakDetector.detect(times, heights)).isEmpty();
     }
+
+    @Test
+    void detectToday_keepsOnlyTheFirstLocalDay_evenWhenThePeakNeedsTheNextDaysReading() {
+        // Open-Meteo returns the whole forecast range; the clients label this list "Tides today".
+        List<String> times = List.of(
+                "2026-10-05T21:00", "2026-10-05T22:00", "2026-10-05T23:00",
+                "2026-10-06T00:00", "2026-10-06T01:00", "2026-10-06T02:00");
+        List<Double> heights = List.of(0.1, 0.5, 0.9, 0.4, -0.3, 0.2);
+
+        assertThat(TidePeakDetector.detectToday(times, heights)).containsExactly(
+                new TideEvent(TideEvent.HIGH, "2026-10-05T23:00"));
+    }
+
+    @Test
+    void detectToday_returnsEmptyList_whenTimesIsEmpty() {
+        assertThat(TidePeakDetector.detectToday(List.of(), List.of())).isEmpty();
+    }
 }
