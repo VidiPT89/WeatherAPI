@@ -2,9 +2,12 @@ package com.vidi.weather.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -66,6 +69,23 @@ class UserControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UserPreferences("kelvin"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deletesTheCallersOwnAccount() throws Exception {
+        mockMvc.perform(delete("/api/v1/user/me").with(user(authenticatedUser)).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        verify(userService).deleteAccount(principalUser);
+    }
+
+    @Test
+    void returns400_whenTheAdminTriesToDeleteItself() throws Exception {
+        doThrow(new IllegalArgumentException("The admin account cannot be deleted from the app."))
+                .when(userService).deleteAccount(principalUser);
+
+        mockMvc.perform(delete("/api/v1/user/me").with(user(authenticatedUser)).with(csrf()))
                 .andExpect(status().isBadRequest());
     }
 }

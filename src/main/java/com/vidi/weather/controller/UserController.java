@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,6 +33,13 @@ public class UserController {
     @Operation(summary = "Get the authenticated user's profile, including role")
     public ResponseEntity<UserResponse> getMe(@AuthenticationPrincipal AuthenticatedUser principal) {
         return ResponseEntity.ok(UserResponse.from(principal.getUser()));
+    }
+
+    @DeleteMapping("/me")
+    @Operation(summary = "Delete the authenticated user's account and all of its data")
+    public ResponseEntity<Void> deleteMe(@AuthenticationPrincipal AuthenticatedUser principal) {
+        userService.deleteAccount(principal.getUser());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/preferences")

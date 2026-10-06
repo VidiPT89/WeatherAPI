@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserService {
@@ -87,6 +88,19 @@ public class UserService {
 
     public User updatePreferredUnits(User user, Units units) {
         return userRepository.save(user.withPreferredUnits(units));
+    }
+
+    /**
+     * Self-service account deletion (required by the App Store). Favorites, history and refresh
+     * tokens go with it via ON DELETE CASCADE. The admin account is refused for the same reason
+     * {@link AdminUserService#deleteUser} refuses it: nothing could promote a new admin.
+     */
+    @Transactional
+    public void deleteAccount(User user) {
+        if (user.getRole() == Role.ADMIN) {
+            throw new IllegalArgumentException("The admin account cannot be deleted from the app.");
+        }
+        userRepository.deleteById(user.getId());
     }
 
     private Role roleFor(String email) {

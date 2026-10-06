@@ -136,4 +136,23 @@ class UserServiceTest {
         verify(userRepository, never()).save(any());
     }
 
+
+    @Test
+    void deleteAccountRemovesTheUser() {
+        User user = new User("someone@example.com", "hash", Units.METRIC);
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", 7L);
+
+        userService.deleteAccount(user);
+
+        verify(userRepository).deleteById(7L);
+    }
+
+    @Test
+    void deleteAccountRefusesTheAdmin() {
+        User admin = new User("admin@example.com", "hash", Units.METRIC).withRole(Role.ADMIN);
+
+        assertThatThrownBy(() -> userService.deleteAccount(admin))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(userRepository, never()).deleteById(any());
+    }
 }
