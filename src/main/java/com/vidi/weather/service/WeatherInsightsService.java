@@ -5,6 +5,7 @@ import com.vidi.weather.model.MoonPhaseInfo;
 import com.vidi.weather.model.Units;
 import com.vidi.weather.model.WeatherData;
 import com.vidi.weather.model.WeatherInsightsData;
+import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import com.vidi.weather.util.FishingConditionScorer;
 import com.vidi.weather.util.MoonPhaseCalculator;
 import com.vidi.weather.util.OutdoorActivityScorer;
@@ -37,10 +38,26 @@ public class WeatherInsightsService {
     }
 
     public WeatherInsightsData getInsights(String city, Units units) {
-        WeatherData weather = weatherAggregatorService.getCurrentWeather(city, units).data();
-        List<DailyForecast> daily = forecastService.getForecast(city, units).data().daily();
+        return buildInsights(
+                weatherAggregatorService.getCurrentWeather(city, units).data(),
+                forecastService.getForecast(city, units).data().daily(),
+                marineService.getMarineConditions(city, units).data().waveHeightMeters(),
+                units);
+    }
+
+    /** Insights for exact coordinates; see {@link ForecastService#getForecastAt}. */
+    public WeatherInsightsData getInsightsAt(GeocodingResult location, Units units) {
+        return buildInsights(
+                weatherAggregatorService.getCurrentWeatherByCoordinates(
+                        location.latitude(), location.longitude(), location.name(), units).data(),
+                forecastService.getForecastAt(location, units).data().daily(),
+                marineService.getMarineConditionsAt(location, units).data().waveHeightMeters(),
+                units);
+    }
+
+    private WeatherInsightsData buildInsights(
+            WeatherData weather, List<DailyForecast> daily, Double waveHeightMeters, Units units) {
         DailyForecast today = daily.isEmpty() ? null : daily.get(0);
-        Double waveHeightMeters = marineService.getMarineConditions(city, units).data().waveHeightMeters();
 
         double uvIndexMax = today != null ? today.uvIndexMax() : 0;
         int precipitationProbabilityMax = today != null ? today.precipitationProbabilityMax() : 0;

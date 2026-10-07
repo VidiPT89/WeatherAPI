@@ -86,7 +86,11 @@ public class OpenMeteoProvider implements WeatherProvider {
     }
 
     public ForecastData fetchForecast(String city, Units units) {
-        GeocodingResult location = resolveLocation(city);
+        return fetchForecastAt(resolveLocation(city), units);
+    }
+
+    /** Forecast for exact coordinates, skipping the by-name geocoding a parish name can fail. */
+    public ForecastData fetchForecastAt(GeocodingResult location, Units units) {
         ForecastResponse response = fetchForecastSeries(location, units);
         // Best-effort: marine enrichment (wave/surf/fishing per day) must never break the
         // core forecast for an inland city or a flaky marine endpoint.
@@ -174,7 +178,10 @@ public class OpenMeteoProvider implements WeatherProvider {
     }
 
     public MarineData fetchMarineConditions(String city, Units units) {
-        GeocodingResult location = resolveLocation(city);
+        return fetchMarineConditionsAt(resolveLocation(city), units);
+    }
+
+    public MarineData fetchMarineConditionsAt(GeocodingResult location, Units units) {
         MarineResponse response = fetchMarineSeries(location, units);
 
         MarineResponse.Hourly hourly = response.hourly();

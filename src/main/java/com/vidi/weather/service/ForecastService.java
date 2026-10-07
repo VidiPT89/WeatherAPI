@@ -8,6 +8,7 @@ import com.vidi.weather.model.Units;
 import com.vidi.weather.provider.OpenMeteoProvider;
 import com.vidi.weather.provider.OpenWeatherMapProvider;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import com.vidi.weather.provider.openmeteo.GeocodingResponse.GeocodingResult;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +40,37 @@ public class ForecastService {
         ForecastData fresh = fetchWithFallback(city, units);
         cacheService.put(city, units, fresh);
         return new ForecastResult(fresh, false);
+    }
+
+    /**
+     * Forecast for exact coordinates (the "use my location" flow). Reverse geocoding can name a
+     * parish ("São Sebastião da Pedreira") that the by-name lookup then fails to find, so this
+     * path never goes back through a name.
+     */
+    public ForecastResult getForecastAt(GeocodingResult location, Units units) {
+        String cacheKey = coordinateKey(location);
+        Optional<ForecastData> cached = cacheService.get(cacheKey, units);
+        if (cached.isPresent()) {
+            return new ForecastResult(cached.get(), true);
+        }
+
+        ForecastData fresh;
+        try {
+            fresh = resilienceExecutor.execute(
+                    openMeteoProvider.getProviderName(), () -> openMeteoProvider.fetchForecastAt(location, units));
+        } catch (WeatherServiceException | CallNotPermittedException ex) {
+            fresh = resilienceExecutor.execute(
+                    openWeatherMapProvider.getProviderName(),
+                    () -> openWeatherMapProvider.fetchForecastByCoordinates(
+                            location.latitude(), location.longitude(), location.name(), units));
+        }
+        cacheService.put(cacheKey, units, fresh);
+        return new ForecastResult(fresh, false);
+    }
+
+    /** Cache key for a coordinate lookup; ~100 m precision, and never collides with a city name. */
+    static String coordinateKey(GeocodingResult location) {
+        return "@%.3f,%.3f".formatted(location.latitude(), location.longitude());
     }
 
     /**

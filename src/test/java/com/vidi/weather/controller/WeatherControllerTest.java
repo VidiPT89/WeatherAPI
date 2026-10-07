@@ -240,6 +240,67 @@ class WeatherControllerTest {
     }
 
     @Test
+    void usesTheCoordinatesForTheForecast_whenLatAndLonAreGiven() throws Exception {
+        ForecastData forecastData = new ForecastData(
+                "São Sebastião da Pedreira", null, Units.METRIC, "open-meteo",
+                java.util.List.of(), java.util.List.of(), 3600);
+        when(forecastService.getForecastAt(any(), eq(Units.METRIC)))
+                .thenReturn(new ForecastResult(forecastData, false));
+
+        mockMvc.perform(get("/api/v1/weather/forecast")
+                        .param("city", "São Sebastião da Pedreira")
+                        .param("lat", "38.7223")
+                        .param("lon", "-9.1393")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("São Sebastião da Pedreira"));
+
+        org.mockito.Mockito.verify(forecastService).getForecastAt(
+                org.mockito.ArgumentMatchers.argThat(location -> location.latitude() == 38.7223
+                        && location.longitude() == -9.1393
+                        && location.name().equals("São Sebastião da Pedreira")),
+                eq(Units.METRIC));
+        org.mockito.Mockito.verify(forecastService, org.mockito.Mockito.never()).getForecast(any(), any());
+    }
+
+    @Test
+    void returns400_whenOnlyLatIsGivenForTheForecast() throws Exception {
+        mockMvc.perform(get("/api/v1/weather/forecast")
+                        .param("city", "Lisboa")
+                        .param("lat", "38.7")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returns400_whenForecastLatIsOutOfRange() throws Exception {
+        mockMvc.perform(get("/api/v1/weather/forecast")
+                        .param("city", "Lisboa")
+                        .param("lat", "91")
+                        .param("lon", "0")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void usesTheCoordinatesForMarineAndInsights_whenLatAndLonAreGiven() throws Exception {
+        when(marineService.getMarineConditionsAt(any(), any())).thenReturn(new com.vidi.weather.model.MarineResult(
+                new com.vidi.weather.model.MarineData("Cascais", null, Units.METRIC, "open-meteo",
+                        18.0, 1.2, 270.0, 9.0, java.util.List.of()), false));
+        when(weatherInsightsService.getInsightsAt(any(), any())).thenThrow(new CityNotFoundException("unused"));
+
+        mockMvc.perform(get("/api/v1/weather/marine").param("city", "Cascais").param("lat", "38.7").param("lon", "-9.4")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/weather/insights").param("city", "Cascais").param("lat", "38.7").param("lon", "-9.4")
+                        .with(user(authenticatedUser)))
+                .andExpect(status().isNotFound());
+
+        org.mockito.Mockito.verify(marineService, org.mockito.Mockito.never()).getMarineConditions(any(), any());
+        org.mockito.Mockito.verify(weatherInsightsService, org.mockito.Mockito.never()).getInsights(any(), any());
+    }
+
+    @Test
     void returns404_whenForecastCityNotFound() throws Exception {
         when(forecastService.getForecast(any(), any())).thenThrow(new CityNotFoundException("Atlantis"));
 

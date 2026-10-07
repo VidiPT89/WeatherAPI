@@ -118,6 +118,8 @@ public class WeatherController {
     @Operation(summary = "Get hourly and daily forecast for a city (works anonymously)")
     public ResponseEntity<ForecastWeatherResponse> getForecast(
             @RequestParam String city,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lon,
             @RequestParam(required = false) String units,
             @AuthenticationPrincipal AuthenticatedUser principal) {
 
@@ -126,7 +128,9 @@ public class WeatherController {
         }
 
         Units parsedUnits = resolveUnits(units, principal);
-        ForecastResult result = forecastService.getForecast(city, parsedUnits);
+        ForecastResult result = coordinates(city, lat, lon)
+                .map(location -> forecastService.getForecastAt(location, parsedUnits))
+                .orElseGet(() -> forecastService.getForecast(city, parsedUnits));
         return ResponseEntity.ok(ForecastWeatherResponse.from(result));
     }
 
@@ -135,6 +139,8 @@ public class WeatherController {
             + "coastal city (works anonymously) — fields come back null for cities with no nearby marine data")
     public ResponseEntity<MarineConditionsResponse> getMarineConditions(
             @RequestParam String city,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lon,
             @RequestParam(required = false) String units,
             @AuthenticationPrincipal AuthenticatedUser principal) {
 
@@ -143,7 +149,9 @@ public class WeatherController {
         }
 
         Units parsedUnits = resolveUnits(units, principal);
-        MarineResult result = marineService.getMarineConditions(city, parsedUnits);
+        MarineResult result = coordinates(city, lat, lon)
+                .map(location -> marineService.getMarineConditionsAt(location, parsedUnits))
+                .orElseGet(() -> marineService.getMarineConditions(city, parsedUnits));
         return ResponseEntity.ok(MarineConditionsResponse.from(result));
     }
 
@@ -153,6 +161,8 @@ public class WeatherController {
             + "with no marine data")
     public ResponseEntity<WeatherInsightsResponse> getWeatherInsights(
             @RequestParam String city,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lon,
             @RequestParam(required = false) String units,
             @AuthenticationPrincipal AuthenticatedUser principal) {
 
@@ -161,8 +171,26 @@ public class WeatherController {
         }
 
         Units parsedUnits = resolveUnits(units, principal);
-        WeatherInsightsData data = weatherInsightsService.getInsights(city, parsedUnits);
+        WeatherInsightsData data = coordinates(city, lat, lon)
+                .map(location -> weatherInsightsService.getInsightsAt(location, parsedUnits))
+                .orElseGet(() -> weatherInsightsService.getInsights(city, parsedUnits));
         return ResponseEntity.ok(WeatherInsightsResponse.from(data));
+    }
+
+    /**
+     * The "use my location" flow passes the coordinates it already has next to the
+     * reverse-geocoded name, so forecast/marine/insights don't look that name up again -- a
+     * parish name like "São Sebastião da Pedreira" isn't found by the by-name geocoder.
+     */
+    private Optional<GeocodingResult> coordinates(String city, Double lat, Double lon) {
+        if (lat == null && lon == null) {
+            return Optional.empty();
+        }
+        if (lat == null || lon == null) {
+            throw new IllegalArgumentException("Query parameters 'lat' and 'lon' must be given together");
+        }
+        validateCoordinates(lat, lon);
+        return Optional.of(new GeocodingResult(city, null, lat, lon));
     }
 
     @GetMapping("/nearby")
@@ -174,12 +202,7 @@ public class WeatherController {
             @RequestParam(required = false) String units,
             @AuthenticationPrincipal AuthenticatedUser principal) {
 
-        if (Double.isNaN(lat) || Double.isInfinite(lat) || lat < -90 || lat > 90) {
-            throw new IllegalArgumentException("Query parameter 'lat' must be between -90 and 90");
-        }
-        if (Double.isNaN(lon) || Double.isInfinite(lon) || lon < -180 || lon > 180) {
-            throw new IllegalArgumentException("Query parameter 'lon' must be between -180 and 180");
-        }
+        validateCoordinates(lat, lon);
 
         Units parsedUnits = resolveUnits(units, principal);
 
@@ -190,6 +213,15 @@ public class WeatherController {
                 lat, lon, location.name(), parsedUnits);
         recordHistory(principal, location.name(), parsedUnits);
         return ResponseEntity.ok(WeatherResponse.from(result));
+    }
+
+    private static void validateCoordinates(double lat, double lon) {
+        if (Double.isNaN(lat) || Double.isInfinite(lat) || lat < -90 || lat > 90) {
+            throw new IllegalArgumentException("Query parameter 'lat' must be between -90 and 90");
+        }
+        if (Double.isNaN(lon) || Double.isInfinite(lon) || lon < -180 || lon > 180) {
+            throw new IllegalArgumentException("Query parameter 'lon' must be between -180 and 180");
+        }
     }
 
     /**

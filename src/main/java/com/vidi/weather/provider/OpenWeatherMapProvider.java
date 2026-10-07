@@ -144,7 +144,19 @@ public class OpenWeatherMapProvider implements WeatherProvider {
                 .queryParam("q", city)
                 .queryParam("appid", properties.openWeatherMap().apiKey())
                 .toUriString();
+        return fetchForecastFrom(uri, city, units);
+    }
 
+    public ForecastData fetchForecastByCoordinates(double latitude, double longitude, String cityName, Units units) {
+        String uri = UriComponentsBuilder.fromHttpUrl(properties.openWeatherMap().forecastUrl())
+                .queryParam("lat", latitude)
+                .queryParam("lon", longitude)
+                .queryParam("appid", properties.openWeatherMap().apiKey())
+                .toUriString();
+        return fetchForecastFrom(uri, cityName, units);
+    }
+
+    private ForecastData fetchForecastFrom(String uri, String city, Units units) {
         OpenWeatherMapForecastResponse response;
         try {
             response = restTemplate.getForObject(uri, OpenWeatherMapForecastResponse.class);
