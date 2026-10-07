@@ -190,7 +190,11 @@ public class WeatherController {
             throw new IllegalArgumentException("Query parameters 'lat' and 'lon' must be given together");
         }
         validateCoordinates(lat, lon);
-        return Optional.of(new GeocodingResult(city, null, lat, lon));
+        // Clients send the "name, country" label they show, and decode `country` as non-null.
+        int lastComma = city.lastIndexOf(',');
+        String name = lastComma > 0 ? city.substring(0, lastComma).trim() : city.trim();
+        String country = lastComma > 0 ? city.substring(lastComma + 1).trim() : "";
+        return Optional.of(new GeocodingResult(name, country, lat, lon));
     }
 
     @GetMapping("/nearby")

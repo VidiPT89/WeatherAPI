@@ -248,7 +248,7 @@ class WeatherControllerTest {
                 .thenReturn(new ForecastResult(forecastData, false));
 
         mockMvc.perform(get("/api/v1/weather/forecast")
-                        .param("city", "São Sebastião da Pedreira")
+                        .param("city", "São Sebastião da Pedreira, PT")
                         .param("lat", "38.7223")
                         .param("lon", "-9.1393")
                         .with(user(authenticatedUser)))
@@ -258,7 +258,8 @@ class WeatherControllerTest {
         org.mockito.Mockito.verify(forecastService).getForecastAt(
                 org.mockito.ArgumentMatchers.argThat(location -> location.latitude() == 38.7223
                         && location.longitude() == -9.1393
-                        && location.name().equals("São Sebastião da Pedreira")),
+                        && location.name().equals("São Sebastião da Pedreira")
+                        && location.country().equals("PT")),
                 eq(Units.METRIC));
         org.mockito.Mockito.verify(forecastService, org.mockito.Mockito.never()).getForecast(any(), any());
     }
