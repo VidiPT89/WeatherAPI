@@ -107,9 +107,10 @@ oauth:
   apple:
     issuer: https://appleid.apple.com
     jwks-uri: https://appleid.apple.com/auth/keys
-    # Native Sign in with Apple tokens carry the iOS bundle ID as `aud`. It's public, so it's the
-    # default -- an unset env var would otherwise silently reject every iOS Apple login.
-    client-ids: ${APPLE_OAUTH_CLIENT_IDS:dev.ividi.weatherapp}
+    # Native Sign in with Apple tokens carry the iOS bundle ID as `aud`. It's public, so it's always
+    # accepted -- an unset or stale env var would otherwise silently reject every iOS Apple login.
+    # APPLE_OAUTH_CLIENT_IDS only adds more audiences (e.g. the web Services ID).
+    client-ids: dev.ividi.weatherapp,${APPLE_OAUTH_CLIENT_IDS:}
   microsoft:
     issuer: https://login.microsoftonline.com/common/v2.0
     jwks-uri: https://login.microsoftonline.com/common/discovery/v2.0/keys
