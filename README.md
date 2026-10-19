@@ -56,7 +56,7 @@ Weather API Aggregator queries a primary weather provider (OpenWeatherMap) and f
 ```
 weather-api/
 ├── src/main/java/com/vidi/weather/
-│   ├── controller/            # Weather (+ forecast/marine/insights/nearby/history/favorites), User, Auth, Admin, Stats
+│   ├── controller/            # Weather (+ forecast/marine/insights/nearby/history/favorites), Coast, User, Auth, Admin, Stats
 │   ├── service/                 # cache/provider/fallback orchestration, resilience, users, history, favorites, admin
 │   ├── provider/                # Strategy/Adapter interface + Open-Meteo + OpenWeatherMap
 │   ├── security/                # JWT, refresh tokens, filters, rate limiting, roles, UserDetails
@@ -96,6 +96,8 @@ GET  /api/v1/weather/nearby?lat=&lon=      — current weather for the caller's 
 GET  /api/v1/weather/forecast?city=&units= — hourly + daily forecast (Open-Meteo, OpenWeatherMap fallback, cached) (anonymous or authenticated)
 GET  /api/v1/weather/marine?city=&units=   — sea conditions (water temp, wave height/direction/period) for a coastal city (anonymous or authenticated)
 GET  /api/v1/weather/insights?city=&units= — derived insights: moon phase, UV risk, outdoor-activity score, fishing conditions (anonymous or authenticated)
+GET  /api/v1/coast/spots?lat=&lon=         — curated Portuguese beach spots (with the direction each faces), nearest first when lat/lon are given (anonymous)
+GET  /api/v1/coast/outlook?spot=&units=    — 4-day hourly swell/wind/tide/water outlook for a spot (or any point via lat=&lon=&name=), with offshore/onshore wind, swell shelter and the best surf, fishing and beach-day window per day (anonymous)
 GET  /api/v1/weather/history               — search history (authenticated)
 DELETE /api/v1/weather/history/{id}        — remove a single search history entry (authenticated)
 DELETE /api/v1/weather/history             — clear the caller's entire search history (authenticated)

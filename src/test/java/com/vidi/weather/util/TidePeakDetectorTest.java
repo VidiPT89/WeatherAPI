@@ -23,6 +23,24 @@ class TidePeakDetectorTest {
     }
 
     @Test
+    void detectsATurningPointOnAPlateauOfEqualReadings() {
+        // Real Open-Meteo readings at Guincho: the high tide fell between 10:00 and 11:00.
+        List<String> times = List.of("08:00", "09:00", "10:00", "11:00", "12:00", "13:00");
+        List<Double> heights = List.of(-0.1, 0.1, 0.22, 0.22, 0.1, -0.14);
+
+        assertThat(TidePeakDetector.detect(times, heights))
+                .containsExactly(new TideEvent(TideEvent.HIGH, "10:00"));
+    }
+
+    @Test
+    void ignoresAPlateauThatKeepsRising() {
+        List<String> times = List.of("00:00", "01:00", "02:00", "03:00");
+        List<Double> heights = List.of(0.1, 0.3, 0.3, 0.5);
+
+        assertThat(TidePeakDetector.detect(times, heights)).isEmpty();
+    }
+
+    @Test
     void returnsEmptyList_whenHeightsIsNull() {
         List<String> times = List.of("00:00", "01:00");
 

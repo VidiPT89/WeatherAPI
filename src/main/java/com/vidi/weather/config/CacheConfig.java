@@ -2,6 +2,7 @@ package com.vidi.weather.config;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.vidi.weather.model.CoastOutlookData;
 import com.vidi.weather.model.ForecastData;
 import com.vidi.weather.model.MarineData;
 import com.vidi.weather.model.WeatherData;
@@ -31,6 +32,11 @@ public class CacheConfig {
 
     @Bean
     public Cache<String, MarineData> marineCache(WeatherApiProperties properties) {
+        return buildCache(properties);
+    }
+
+    @Bean
+    public Cache<String, CoastOutlookData> coastOutlookCache(WeatherApiProperties properties) {
         return buildCache(properties);
     }
 

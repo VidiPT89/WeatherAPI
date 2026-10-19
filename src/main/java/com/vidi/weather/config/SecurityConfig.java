@@ -76,6 +76,7 @@ public class SecurityConfig {
                                 "/api/v1/weather/forecast",
                                 "/api/v1/weather/marine",
                                 "/api/v1/weather/insights",
+                                "/api/v1/coast/**",
                                 "/api/v1/geocoding",
                                 "/api/v1/health",
                                 "/swagger-ui/**",

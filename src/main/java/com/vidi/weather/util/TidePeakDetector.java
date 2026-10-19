@@ -32,6 +32,11 @@ public final class TidePeakDetector {
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
+    /**
+     * A turning point can sit on a plateau of equal hourly readings (e.g. 0.22, 0.22 when the real
+     * peak falls on the half hour), so a run of equal values counts as one point, reported at its
+     * first hour, and is compared with the readings on either side of the whole run.
+     */
     public static List<TideEvent> detect(List<String> times, List<Double> heights) {
         List<TideEvent> events = new ArrayList<>();
         if (times == null || heights == null) {
@@ -39,19 +44,30 @@ public final class TidePeakDetector {
         }
 
         int count = Math.min(times.size(), heights.size());
-        for (int i = 1; i < count - 1; i++) {
+        int i = 1;
+        while (i < count - 1) {
             Double previous = heights.get(i - 1);
             Double current = heights.get(i);
-            Double next = heights.get(i + 1);
-            if (previous == null || current == null || next == null) {
+            if (previous == null || current == null) {
+                i++;
                 continue;
             }
-
-            if (current > previous && current > next) {
-                events.add(new TideEvent(TideEvent.HIGH, times.get(i)));
-            } else if (current < previous && current < next) {
-                events.add(new TideEvent(TideEvent.LOW, times.get(i)));
+            int runEnd = i;
+            while (runEnd + 1 < count && current.equals(heights.get(runEnd + 1))) {
+                runEnd++;
             }
+            if (runEnd + 1 >= count) {
+                break;
+            }
+            Double next = heights.get(runEnd + 1);
+            if (next != null) {
+                if (current > previous && current > next) {
+                    events.add(new TideEvent(TideEvent.HIGH, times.get(i)));
+                } else if (current < previous && current < next) {
+                    events.add(new TideEvent(TideEvent.LOW, times.get(i)));
+                }
+            }
+            i = runEnd + 1;
         }
         return events;
     }
