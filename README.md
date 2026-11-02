@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/VidiPT89/WeatherAPI/actions/workflows/ci.yml/badge.svg)](https://github.com/VidiPT89/WeatherAPI/actions/workflows/ci.yml)
 
-**Clients built on this API:** [Web (Next.js)](https://github.com/VidiPT89/WeatherApp) ([live](https://weather-app-psi-inky-53.vercel.app)) · [iOS (Swift/SwiftUI)](https://github.com/VidiPT89/WeatherApp-iOS) · [Android (Kotlin/Compose)](https://github.com/VidiPT89/WeatherApp-Android) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
+**Clients built on this API:** [Web (Next.js)](https://github.com/VidiPT89/WeatherApp) ([live](https://weather-app-psi-inky-53.vercel.app)) · [iOS (Swift/SwiftUI)](https://github.com/VidiPT89/WeatherApp-iOS) — none of them talk to Open-Meteo/OpenWeatherMap directly, every request goes through this API.
 
 ![The Next.js client on the live API: current weather for Lisbon, the hourly forecast, sea conditions and today's estimated tides](assets/web-dashboard.jpg)
 
