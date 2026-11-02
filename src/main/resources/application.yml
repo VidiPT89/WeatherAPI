@@ -98,7 +98,7 @@ admin:
 # Social login: the backend only verifies ID tokens the client already obtained natively from
 # each provider's own SDK, so no client *secret* is needed here -- client-ids is the (non-secret)
 # audience a token's `aud` claim must match. Comma-separated since a provider issues a different
-# client id per platform (web/iOS/Android) that all need to be accepted.
+# client id per platform (web/iOS) that all need to be accepted.
 oauth:
   google:
     issuer: https://accounts.google.com
